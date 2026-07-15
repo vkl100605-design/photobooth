@@ -14,11 +14,26 @@ export default function CameraFeed({
   onBack: () => void;
   onNext: () => void;
 }) {
-  const { layout, background, removeBackground, setRemoveBackground, setPhotos, isMuted, toggleMuted, shutterTriggeredFromGuest } = useBooth();
+  const {
+    layout,
+    background,
+    removeBackground,
+    setRemoveBackground,
+    setPhotos,
+    isMuted,
+    toggleMuted,
+    shutterTriggeredFromGuest,
+    multiplayerRole,
+    setLocalStream,
+    remoteStream,
+    isSimulatedMultiplayer,
+  } = useBooth();
   const { stream, error, isLoading, startCamera, stopCamera } = useCamera();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const simulatedVideoRef = useRef<HTMLVideoElement>(null);
   
   const [capturedCount, setCapturedCount] = useState<number>(0);
   const [capturedPhotos, setLocalPhotos] = useState<string[]>([]);
@@ -49,6 +64,30 @@ export default function CameraFeed({
       videoRef.current.srcObject = stream;
     }
   }, [stream]);
+
+  // Sync host camera stream to localStream context
+  useEffect(() => {
+    if (stream) {
+      setLocalStream(stream);
+    }
+    return () => {
+      setLocalStream(null);
+    };
+  }, [stream, setLocalStream]);
+
+  // Handle remote WebRTC stream assignment
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
+  // Handle simulated stream copy for local offline testing
+  useEffect(() => {
+    if (simulatedVideoRef.current && stream && isSimulatedMultiplayer) {
+      simulatedVideoRef.current.srcObject = stream;
+    }
+  }, [stream, isSimulatedMultiplayer]);
 
   // Listen for guest remote shutter triggers reactively
   useEffect(() => {
@@ -221,6 +260,35 @@ export default function CameraFeed({
     }
   }, [stream, removeBackground, segmentation]);
 
+  // Center crop image drawing helper for grid stitching
+  const drawCenterCropped = (
+    ctx: CanvasRenderingContext2D,
+    video: HTMLVideoElement,
+    destX: number,
+    destY: number,
+    destW: number,
+    destH: number
+  ) => {
+    const videoW = video.videoWidth || 640;
+    const videoH = video.videoHeight || 480;
+    const targetAspect = destW / destH;
+    const sourceAspect = videoW / videoH;
+    let srcX = 0;
+    let srcY = 0;
+    let srcW = videoW;
+    let srcH = videoH;
+
+    if (sourceAspect > targetAspect) {
+      srcW = videoH * targetAspect;
+      srcX = (videoW - srcW) / 2;
+    } else {
+      srcH = videoW / targetAspect;
+      srcY = (videoH - srcH) / 2;
+    }
+
+    ctx.drawImage(video, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
+  };
+
   // Speech helper
   const speak = (text: string) => {
     if (voiceEnabled && "speechSynthesis" in window && !isMuted) {
@@ -256,8 +324,56 @@ export default function CameraFeed({
   const captureSnapshot = () => {
     const video = videoRef.current;
     const previewCanvas = canvasPreviewRef.current;
+    const remoteVideo = remoteVideoRef.current;
 
     const canvas = document.createElement("canvas");
+    
+    // If in multiplayer connect mode, stitch both video call feeds side-by-side
+    if (multiplayerRole === "host") {
+      canvas.width = 1200; // 600px each half
+      canvas.height = 800; // 800px height
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+
+      ctx.fillStyle = "#1c1917"; // Slate dark divider backdrop card
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Draw Host Feed on the Left (0 to 600)
+      if (video) {
+        ctx.save();
+        ctx.translate(600, 0);
+        ctx.scale(-1, 1);
+        drawCenterCropped(ctx, video, 0, 0, 600, 800);
+        ctx.restore();
+      }
+
+      // 2. Draw Guest Feed on the Right (600 to 1200)
+      if (remoteVideo) {
+        ctx.save();
+        drawCenterCropped(ctx, remoteVideo, 600, 0, 600, 800);
+        ctx.restore();
+      } else if (isSimulatedMultiplayer && video) {
+        // Simulation offset feed: draw mirror offset with vintage color filter
+        ctx.save();
+        ctx.translate(1200, 0);
+        ctx.scale(-1, 1);
+        ctx.filter = "sepia(0.5) hue-rotate(90deg) contrast(1.2)";
+        drawCenterCropped(ctx, video, 0, 0, 600, 800);
+        ctx.restore();
+      }
+
+      // 3. Draw a nice dark dividing strip down the middle
+      ctx.strokeStyle = "#44403c";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(600, 0);
+      ctx.lineTo(600, 800);
+      ctx.stroke();
+
+      return canvas.toDataURL("image/png");
+    }
+
+    // Normal solo capture
     canvas.width = video?.videoWidth || 640;
     canvas.height = video?.videoHeight || 480;
     const ctx = canvas.getContext("2d");
@@ -402,11 +518,50 @@ export default function CameraFeed({
                 className="absolute top-0 left-0 w-[1px] h-[1px] opacity-0 pointer-events-none"
               />
 
-              {/* Render canvas preview directly */}
-              <canvas
-                ref={canvasPreviewRef}
-                className="w-full h-full object-cover transform scale-x-[-1]"
-              />
+              {multiplayerRole === "host" ? (
+                <div className="grid grid-cols-2 gap-3.5 w-full h-full p-3 bg-stone-900/60">
+                  {/* Host Preview Canvas */}
+                  <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
+                    <canvas
+                      ref={canvasPreviewRef}
+                      className="w-full h-full object-cover transform scale-x-[-1]"
+                    />
+                    <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">You (Host)</span>
+                  </div>
+
+                  {/* Remote Guest Preview Video */}
+                  <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
+                    {remoteStream ? (
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : isSimulatedMultiplayer ? (
+                      <video
+                        ref={simulatedVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover transform -scale-x-100 filter sepia-[0.5] hue-rotate-[90deg] contrast-[1.2]"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-center p-4">
+                        <div className="w-6 h-6 rounded-full border border-stone-800 border-t-amber-500 animate-spin mb-2" />
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-stone-500 animate-pulse">Awaiting Guest Video...</span>
+                      </div>
+                    )}
+                    <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">Friend (Guest)</span>
+                  </div>
+                </div>
+              ) : (
+                /* Render canvas preview directly (Solo Mode) */
+                <canvas
+                  ref={canvasPreviewRef}
+                  className="w-full h-full object-cover transform scale-x-[-1]"
+                />
+              )}
 
               {(!stream || isLoading || !isFeedReady) && (
                 <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center">

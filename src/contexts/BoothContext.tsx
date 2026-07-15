@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { sounds } from "@/lib/sounds";
 
 export type BoothStep =
@@ -102,6 +102,10 @@ interface BoothContextType {
   setGuestAnnotation: (anno: any) => void;
   connectToHost: (hostId: string) => void;
   sendGuestAction: (action: any) => void;
+  localStream: MediaStream | null;
+  setLocalStream: (stream: MediaStream | null) => void;
+  remoteStream: MediaStream | null;
+  setRemoteStream: (stream: MediaStream | null) => void;
 }
 
 const BoothContext = createContext<BoothContextType | undefined>(undefined);
@@ -123,6 +127,15 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   const [isSimulatedMultiplayer, setIsSimulatedMultiplayer] = useState<boolean>(false);
   const [shutterTriggeredFromGuest, setShutterTriggeredFromGuest] = useState<number>(0);
   const [guestAnnotation, setGuestAnnotation] = useState<any>(null);
+
+  // WebRTC Media call streams
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    localStreamRef.current = localStream;
+  }, [localStream]);
 
   // PeerJS instances references
   const [PeerClass, setPeerClass] = useState<any>(null);
@@ -174,6 +187,19 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
 
     peer.on("open", (id: string) => {
       setPeerId(id);
+    });
+
+    peer.on("call", (call: any) => {
+      call.answer(localStreamRef.current || undefined);
+      call.on("stream", (remoteStreamInstance: MediaStream) => {
+        setRemoteStream(remoteStreamInstance);
+      });
+      call.on("close", () => {
+        setRemoteStream(null);
+      });
+      call.on("error", () => {
+        setRemoteStream(null);
+      });
     });
 
     peer.on("connection", (conn: any) => {
@@ -276,10 +302,24 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           setHostConnection(null);
           setMultiplayerRoleState(null);
           setStepState("landing");
+          setRemoteStream(null);
         };
 
         conn.on("close", handleCleanup);
         conn.on("error", handleCleanup);
+      });
+
+      peer.on("call", (call: any) => {
+        call.answer(localStreamRef.current || undefined);
+        call.on("stream", (remoteStreamInstance: MediaStream) => {
+          setRemoteStream(remoteStreamInstance);
+        });
+        call.on("close", () => {
+          setRemoteStream(null);
+        });
+        call.on("error", () => {
+          setRemoteStream(null);
+        });
       });
 
       peer.on("error", (err: any) => {
@@ -287,10 +327,31 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         setHostConnection(null);
         setMultiplayerRoleState(null);
         setStepState("landing");
+        setRemoteStream(null);
       });
     },
     [PeerClass]
   );
+
+  // Guest calling Host effect when Guest localStream is active
+  useEffect(() => {
+    if (multiplayerRole !== "guest" || !peerInstance || !hostConnection || !localStream) return;
+
+    const call = peerInstance.call(hostConnection.peer, localStream);
+    call.on("stream", (remoteStreamInstance: MediaStream) => {
+      setRemoteStream(remoteStreamInstance);
+    });
+    
+    const handleClose = () => {
+      setRemoteStream(null);
+    };
+    call.on("close", handleClose);
+    call.on("error", handleClose);
+
+    return () => {
+      call.close();
+    };
+  }, [localStream, hostConnection, peerInstance, multiplayerRole]);
 
   // Triggers remote action broadcast to host OR runs simulation locally
   const sendGuestAction = useCallback(
@@ -328,6 +389,15 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
     setSelectedFilter("original");
     setRemoveBackground(false);
     setEditedStripUrl("");
+
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+    }
+    setLocalStream(null);
+    if (remoteStream) {
+      remoteStream.getTracks().forEach((track) => track.stop());
+    }
+    setRemoteStream(null);
 
     // Multiplayer Resets
     setMultiplayerRoleState(null);
@@ -381,6 +451,10 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         setGuestAnnotation,
         connectToHost,
         sendGuestAction,
+        localStream,
+        setLocalStream,
+        remoteStream,
+        setRemoteStream,
       }}
     >
       {children}

@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useBooth } from "@/contexts/BoothContext";
 import { sounds } from "@/lib/sounds";
-import { Camera, Smile, Type, Check, Wifi, AlertCircle } from "lucide-react";
+import { Camera, Smile, Type, Check, Wifi, AlertCircle, Video } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const EMOJIS = ["❤️", "💖", "✨", "⭐", "🕶️", "👑", "🎩", "🎀", "💬", "🎈", "🎉", "🌸", "👽", "🐱", "🐶", "🦄"];
@@ -24,7 +24,10 @@ export default function GuestInterface({
     layout,
     connectToHost,
     sendGuestAction,
-    resetSession
+    resetSession,
+    localStream,
+    setLocalStream,
+    remoteStream,
   } = useBooth();
 
   const [textVal, setTextVal] = useState<string>("");
@@ -32,6 +35,9 @@ export default function GuestInterface({
   const [textColor, setTextColor] = useState<string>("#ffffff");
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"sticker" | "text">("sticker");
+
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
   // Connect guest peer on mount
   useEffect(() => {
@@ -45,6 +51,42 @@ export default function GuestInterface({
       setIsConnected(false);
     };
   }, [hostId, connectToHost]);
+
+  // Request camera track access on mount
+  useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    if (typeof window !== "undefined") {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then((stream) => {
+          activeStream = stream;
+          setLocalStream(stream);
+        })
+        .catch((err) => {
+          console.warn("Guest camera access denied:", err);
+        });
+    }
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+      }
+      setLocalStream(null);
+    };
+  }, [setLocalStream]);
+
+  const activeRemoteStream = remoteStream || (hostId === "simulator" ? localStream : null);
+
+  // Stream attachments
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, step]);
+
+  useEffect(() => {
+    if (remoteVideoRef.current && activeRemoteStream) {
+      remoteVideoRef.current.srcObject = activeRemoteStream;
+    }
+  }, [activeRemoteStream, step]);
 
   const handleShutterTrigger = () => {
     sounds.playClick();
@@ -78,7 +120,7 @@ export default function GuestInterface({
   return (
     <div 
       className="w-full max-w-md mx-auto min-h-[92vh] flex flex-col justify-between bg-stone-950 text-stone-100 p-5 shadow-2xl relative select-none"
-      style={{ touchAction: "none" }} // Prevents viewport bounces on mobile browsers
+      style={{ touchAction: "none" }}
     >
       
       {/* Top Navbar */}
@@ -94,31 +136,84 @@ export default function GuestInterface({
         </div>
       </div>
 
+      {/* Floating self webcam bubble preview when not in capture screen */}
+      {step !== "camera" && localStream && (
+        <div className="absolute top-16 right-5 w-16 h-16 rounded-full border-2 border-amber-500 bg-stone-950 overflow-hidden shadow-lg z-30">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover transform -scale-x-100"
+          />
+        </div>
+      )}
+
       {/* Main UI body */}
       <div className="flex-1 flex flex-col justify-center items-center py-4 w-full">
         <AnimatePresence mode="wait">
           
-          {/* STEP: Camera Remote Shutter Trigger */}
+          {/* STEP: Camera Remote Shutter Trigger with Dual feeds */}
           {step === "camera" && (
             <motion.div
               key="camera-trigger"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full flex flex-col items-center gap-8"
+              className="w-full flex flex-col items-center gap-6"
             >
               <div className="text-center">
-                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest">Host Camera Feed Ready</span>
-                <h3 className="text-xl font-serif font-bold text-stone-200 mt-1">Tap Shutter to Trigger</h3>
+                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest">Cooperative Video Pose</span>
+                <h3 className="text-xl font-serif font-bold text-stone-200 mt-1">Dual Video Active</h3>
+              </div>
+
+              {/* Side-by-side Video Previews */}
+              <div className="grid grid-cols-2 gap-3 w-full max-w-sm aspect-[4/3] bg-stone-900 p-2.5 rounded-2xl border border-stone-850">
+                {/* Host Feed */}
+                <div className="relative rounded-xl overflow-hidden bg-stone-950 border border-stone-800 flex items-center justify-center">
+                  {activeRemoteStream ? (
+                    <video
+                      ref={remoteVideoRef}
+                      autoPlay
+                      playsInline
+                      className={`w-full h-full object-cover ${hostId === "simulator" ? "filter sepia-[0.5] hue-rotate-[90deg] contrast-[1.2]" : ""}`}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-2 text-stone-600">
+                      <Video className="w-5 h-5 mb-1.5 animate-pulse text-amber-500/50" />
+                      <span className="text-[8px] font-bold uppercase tracking-wider">Host Camera Loading...</span>
+                    </div>
+                  )}
+                  <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">Host (Cabin)</span>
+                </div>
+
+                {/* Local Guest Feed */}
+                <div className="relative rounded-xl overflow-hidden bg-stone-950 border border-stone-800 flex items-center justify-center">
+                  {localStream ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover transform -scale-x-100"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-2 text-stone-600">
+                      <Video className="w-5 h-5 mb-1.5 animate-pulse text-amber-500/50" />
+                      <span className="text-[8px] font-bold uppercase tracking-wider">Loading...</span>
+                    </div>
+                  )}
+                  <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">You (Guest)</span>
+                </div>
               </div>
 
               {/* Big Shutter Trigger Button */}
               <button
                 onClick={handleShutterTrigger}
-                className="w-36 h-36 rounded-full bg-red-600 hover:bg-red-500 border-8 border-stone-900 shadow-[0_10px_35px_rgba(220,38,38,0.3)] active:scale-95 transition-all transform flex items-center justify-center cursor-pointer group"
+                className="w-28 h-28 rounded-full bg-red-600 hover:bg-red-500 border-8 border-stone-900 shadow-[0_10px_35px_rgba(220,38,38,0.3)] active:scale-95 transition-all transform flex items-center justify-center cursor-pointer group"
               >
-                <div className="w-24 h-24 rounded-full border-4 border-dashed border-red-200/20 flex items-center justify-center group-hover:rotate-12 transition-transform duration-700">
-                  <Camera className="w-10 h-10 text-red-50" />
+                <div className="w-18 h-18 rounded-full border-4 border-dashed border-red-200/20 flex items-center justify-center group-hover:rotate-12 transition-transform duration-700">
+                  <Camera className="w-8 h-8 text-red-550" />
                 </div>
               </button>
 
@@ -129,7 +224,7 @@ export default function GuestInterface({
                 </span>
                 
                 {photos.length === 0 ? (
-                  <div className="py-6 border border-dashed border-stone-800/80 rounded-xl text-center text-[10px] text-stone-600 font-medium">
+                  <div className="py-4 border border-dashed border-stone-800/80 rounded-xl text-center text-[10px] text-stone-600 font-medium">
                     No pictures captured yet.
                   </div>
                 ) : (
@@ -251,7 +346,7 @@ export default function GuestInterface({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="text-center py-12 flex flex-col items-center"
+              className="text-center py-12 flex flex-col items-center animate-in fade-in"
             >
               <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 animate-pulse mb-4">
                 <AlertCircle className="w-5 h-5" />
@@ -274,7 +369,7 @@ export default function GuestInterface({
             sounds.playClick();
             resetSession();
           }}
-          className="text-stone-500 hover:text-stone-350 transition-colors text-[10px] font-semibold underline cursor-pointer"
+          className="text-stone-500 hover:text-stone-355 transition-colors text-[10px] font-semibold underline cursor-pointer"
         >
           Disconnect Remote Controls
         </button>
