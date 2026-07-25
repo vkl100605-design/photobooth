@@ -106,6 +106,8 @@ interface BoothContextType {
   setLocalStream: (stream: MediaStream | null) => void;
   remoteStream: MediaStream | null;
   setRemoteStream: (stream: MediaStream | null) => void;
+  loopVideoUrl: string;
+  setLoopVideoUrl: (url: string) => void;
 }
 
 const BoothContext = createContext<BoothContextType | undefined>(undefined);
@@ -120,6 +122,7 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   const [removeBackground, setRemoveBackground] = useState<boolean>(false);
   const [editedStripUrl, setEditedStripUrl] = useState<string>("");
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [loopVideoUrl, setLoopVideoUrl] = useState<string>("");
 
   // Multiplayer variables
   const [multiplayerRole, setMultiplayerRoleState] = useState<"host" | "guest" | null>(null);
@@ -435,6 +438,11 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
     setHostConnection(null);
     setGuestConnections([]);
     setConnectedGuestsCount(0);
+
+    if (loopVideoUrl) {
+      URL.revokeObjectURL(loopVideoUrl);
+    }
+    setLoopVideoUrl("");
   };
 
   return (
@@ -477,6 +485,8 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         setLocalStream,
         remoteStream,
         setRemoteStream,
+        loopVideoUrl,
+        setLoopVideoUrl,
       }}
     >
       {children}

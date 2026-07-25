@@ -232,6 +232,52 @@ class SoundManager {
       console.warn("Failed to play click sound:", e);
     }
   }
+
+  // 6. Chemical Wash Slosh: Low-pass filtered noise modulated by a slow LFO for wave ripples
+  public playChemicalWash(duration: number) {
+    if (this.isMuted) return;
+    try {
+      const context = this.init();
+      const now = context.currentTime;
+
+      // Noise source
+      const noise = context.createBufferSource();
+      noise.buffer = this.createNoiseBuffer(duration);
+
+      const filter = context.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(200, now);
+      filter.Q.value = 1.0;
+
+      // Modulator (LFO) to simulate rising and falling waves
+      const lfo = context.createOscillator();
+      const lfoGain = context.createGain();
+      lfo.type = "sine";
+      lfo.frequency.value = 0.6; // 0.6 Hz slow wave
+      lfoGain.gain.value = 100; // Modulate frequency by +/- 100 Hz
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
+
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.2, now);
+      // Fade out slowly at the end
+      gain.gain.setValueAtTime(0.2, now + duration - 0.5);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(context.destination);
+
+      lfo.start(now);
+      noise.start(now);
+
+      lfo.stop(now + duration);
+      noise.stop(now + duration);
+    } catch (e) {
+      console.warn("Failed to play chemical wash sound:", e);
+    }
+  }
 }
 
 export const sounds = new SoundManager();

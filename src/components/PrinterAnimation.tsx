@@ -3,22 +3,33 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useBooth, FILTERS } from "@/contexts/BoothContext";
 import { sounds } from "@/lib/sounds";
-import { Download, Clipboard, RefreshCw, LogOut, Printer, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { Download, Clipboard, RefreshCw, LogOut, Printer, Sparkles, Video } from "lucide-react";
 import confetti from "canvas-confetti";
 
 export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
-  const { photos, layout, background, selectedFilter, editedStripUrl, resetSession } = useBooth();
+  const { 
+    photos, 
+    layout, 
+    background, 
+    selectedFilter, 
+    editedStripUrl, 
+    resetSession,
+    loopVideoUrl,
+    setLoopVideoUrl 
+  } = useBooth();
+
   const [isDeveloping, setIsDeveloping] = useState(true);
   const [printProgress, setPrintProgress] = useState(0);
   const [compositeUrl, setCompositeUrl] = useState<string>("");
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [loopLoading, setLoopLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [exportFormat, setExportFormat] = useState<"png" | "jpeg">("png");
 
-  // Run the developing animation and trigger printer sound
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Run the darkroom chemical wash sequence
   useEffect(() => {
-    sounds.playPrinter(5); // Play synthetic gear wind sound for 5s
+    sounds.playChemicalWash(5); // Play procedural chemical wash ripples for 5 seconds
     
     const interval = setInterval(() => {
       setPrintProgress((prev) => {
@@ -33,6 +44,130 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Determine standard video format supported by user's browser
+  const getSupportedMimeType = () => {
+    if (typeof window === "undefined" || !window.MediaRecorder) return "";
+    const types = ["video/webm;codecs=vp9", "video/webm", "video/mp4", "video/ogg"];
+    for (const t of types) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return "";
+  };
+
+  // Compile photos to downloadable animated WebM loop
+  useEffect(() => {
+    if (photos.length === 0 || loopVideoUrl || typeof window === "undefined" || !window.MediaRecorder) return;
+
+    setLoopLoading(true);
+
+    const loadAndRecord = async () => {
+      try {
+        const loadedImgs = await Promise.all(
+          photos.map((url) => {
+            return new Promise<HTMLImageElement>((resolve, reject) => {
+              const img = new Image();
+              if (!url.startsWith("data:")) {
+                img.crossOrigin = "anonymous";
+              }
+              img.src = url;
+              img.onload = () => resolve(img);
+              img.onerror = reject;
+            });
+          })
+        );
+
+        // Create offscreen looping recorder canvas
+        const recordCanvas = document.createElement("canvas");
+        recordCanvas.width = 640;
+        recordCanvas.height = 480;
+        const rCtx = recordCanvas.getContext("2d");
+        if (!rCtx) return;
+
+        const mime = getSupportedMimeType();
+        if (!mime) {
+          setLoopLoading(false);
+          return;
+        }
+
+        // Capture canvas stream at 10 frames per second using non-any custom interface casting
+        const canvasWithCapture = recordCanvas as unknown as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream };
+        const stream = canvasWithCapture.captureStream ? canvasWithCapture.captureStream(10) : null;
+        if (!stream) {
+          setLoopLoading(false);
+          return;
+        }
+
+        const recorder = new MediaRecorder(stream, { mimeType: mime });
+        const chunks: Blob[] = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: mime });
+          const videoBlobUrl = URL.createObjectURL(blob);
+          setLoopVideoUrl(videoBlobUrl);
+          setLoopLoading(false);
+        };
+
+        recorder.start();
+
+        let frameIndex = 0;
+        const loopsCount = 4; // loop compilation sequence 4 times
+        const totalFrames = loadedImgs.length * loopsCount;
+
+        const drawFrameLoop = () => {
+          if (frameIndex >= totalFrames) {
+            recorder.stop();
+            return;
+          }
+
+          const img = loadedImgs[frameIndex % loadedImgs.length];
+          rCtx.fillStyle = "#1c1917"; // back card filling
+          rCtx.fillRect(0, 0, 640, 480);
+
+          // Center-crop frames to fit standard 4:3 video loop card
+          const imgAspect = img.width / img.height;
+          const canvasAspect = 640 / 480;
+          let sx = 0, sy = 0, sw = img.width, sh = img.height;
+
+          if (imgAspect > canvasAspect) {
+            sw = img.height * canvasAspect;
+            sx = (img.width - sw) / 2;
+          } else {
+            sh = img.width / canvasAspect;
+            sy = (img.height - sh) / 2;
+          }
+
+          // Apply visual filters inside the loop compilation to match photo filters
+          const filterPreset = FILTERS.find((f) => f.id === selectedFilter) || FILTERS[0];
+          rCtx.filter = filterPreset.cssFilter;
+
+          rCtx.drawImage(img, sx, sy, sw, sh, 0, 0, 640, 480);
+
+          // Analog film spool frame overlay lines
+          rCtx.filter = "none";
+          rCtx.strokeStyle = "rgba(0,0,0,0.15)";
+          rCtx.lineWidth = 12;
+          rCtx.strokeRect(0, 0, 640, 480);
+
+          frameIndex++;
+          setTimeout(drawFrameLoop, 400); // 400ms duration per pose
+        };
+
+        drawFrameLoop();
+      } catch (err) {
+        console.warn("Failed to generate animated WebM loop:", err);
+        setLoopLoading(false);
+      }
+    };
+
+    loadAndRecord();
+  }, [photos, selectedFilter, loopVideoUrl, setLoopVideoUrl]);
 
   // Composite the final image when photos are loaded
   useEffect(() => {
@@ -94,14 +229,12 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
 
       // 1. Draw Backdrop
       if (background.startsWith("data:") || background.startsWith("blob:") || background.startsWith("http")) {
-        // Draw custom image backdrop
         const bgImg = new Image();
         if (background.startsWith("http")) {
           bgImg.crossOrigin = "anonymous";
         }
         bgImg.src = background;
         bgImg.onload = () => {
-          // Cover logic
           const scale = Math.max(canvasWidth / bgImg.width, canvasHeight / bgImg.height);
           const x = (canvasWidth - bgImg.width * scale) / 2;
           const y = (canvasHeight - bgImg.height * scale) / 2;
@@ -109,18 +242,15 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
           drawPhotosAndTexture();
         };
       } else if (background.startsWith("repeating-")) {
-        // Simple procedural background drawing
         ctx.fillStyle = "#8b5a2b"; // fallback retro wood brown
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         
-        // draw vertical striped wallpaper style
         ctx.fillStyle = "#704214";
         for (let i = 0; i < canvasWidth; i += 60) {
           ctx.fillRect(i, 0, 30, canvasHeight);
         }
         drawPhotosAndTexture();
       } else if (background.startsWith("linear-")) {
-        // Draw linear gradient
         const grad = ctx.createLinearGradient(0, 0, 0, canvasHeight);
         if (background.includes("#2c1a11")) { // vintage cafe
           grad.addColorStop(0, "#2c1a11");
@@ -139,7 +269,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         drawPhotosAndTexture();
       } else {
-        // Solid color
         ctx.fillStyle = background;
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         drawPhotosAndTexture();
@@ -147,6 +276,7 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
 
       function drawPhotosAndTexture() {
         if (!ctx || !canvas) return;
+        
         // 2. Set Filter
         const filterPreset = FILTERS.find((f) => f.id === selectedFilter) || FILTERS[0];
         ctx.filter = filterPreset.cssFilter;
@@ -162,7 +292,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
             const x = padding;
             const y = padding + idx * (singleHeight + spacing);
             
-            // Draw image cropped to layout aspect ratio
             ctx.save();
             ctx.beginPath();
             ctx.rect(x, y, singleWidth, singleHeight);
@@ -175,7 +304,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
             
             ctx.restore();
 
-            // Draw a subtle retro frame border around the photo
             ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
             ctx.lineWidth = 4;
             ctx.strokeRect(x, y, singleWidth, singleHeight);
@@ -233,7 +361,7 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
           ctx.lineWidth = 4;
           ctx.strokeRect(x, y, singleWidth, singleHeight);
 
-          // bottom note section text simulator
+          // Polaroid bottom handwriting marker text
           ctx.filter = "none";
           ctx.font = "italic 32px 'Georgia', serif";
           ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
@@ -265,7 +393,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
           });
         }
 
-        // Reset filter context
         ctx.filter = "none";
 
         // 4. Generate fine paper grain texture overlay
@@ -289,7 +416,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
           ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         }
 
-        // Convert finalized canvas graphics to in-memory URL
         setCompositeUrl(canvas.toDataURL("image/png"));
       }
     });
@@ -298,7 +424,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
   const handleDownload = () => {
     if (!compositeUrl) return;
     
-    // Play shutter sound on download click as physical validation
     sounds.playShutter();
 
     const link = document.createElement("a");
@@ -308,7 +433,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
     link.click();
     document.body.removeChild(link);
 
-    // Confetti explosion
     confetti({
       particleCount: 100,
       spread: 70,
@@ -341,7 +465,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
     }
   };
 
-  // Launch browser native print window to allow printing/saving as PDF
   const handlePrintOrPDF = () => {
     sounds.playClick();
     const printWindow = window.open("", "_blank");
@@ -389,33 +512,53 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
     <div className="w-full max-w-2xl mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[85vh] relative">
       {/* Developing Animation */}
       {isDeveloping ? (
-        <div className="flex flex-col items-center text-center py-12">
+        <div className="flex flex-col items-center text-center py-8">
           {/* Chamber glow indicator */}
-          <div className="relative w-40 h-10 bg-stone-900 border border-stone-850 rounded-lg flex items-center justify-center shadow-inner overflow-hidden mb-8">
+          <div className="relative w-48 h-10 bg-stone-900 border border-stone-850 rounded-lg flex items-center justify-center shadow-inner overflow-hidden mb-8">
             <div
               style={{ width: `${printProgress}%` }}
               className="absolute left-0 top-0 bottom-0 bg-red-600/30 transition-all duration-100 ease-linear"
             />
             <span className="text-[10px] uppercase font-bold tracking-widest text-red-500 z-10 animate-pulse flex items-center gap-1.5">
-              <Printer className="w-3.5 h-3.5 animate-bounce" /> Developing Film...
+              <Sparkles className="w-3.5 h-3.5" /> Darkroom Developing... {printProgress}%
             </span>
           </div>
 
-          <div className="w-64 h-80 bg-stone-900/60 border border-stone-850 rounded-2xl flex items-center justify-center shadow-inner relative overflow-hidden">
-            {/* Sliding animation representing emerging paper */}
-            <motion.div
-              initial={{ y: 250 }}
-              animate={{ y: 0 }}
-              transition={{ duration: 5, ease: "linear" }}
-              className="w-36 h-72 bg-stone-100 rounded shadow-md border-x-4 border-t-4 border-stone-300 p-2 flex flex-col gap-1.5"
-            >
-              <div className="w-full aspect-[4/3] bg-stone-200 animate-pulse rounded" />
-              <div className="w-full aspect-[4/3] bg-stone-200 animate-pulse rounded" />
-              <div className="w-full aspect-[4/3] bg-stone-200 animate-pulse rounded" />
-            </motion.div>
+          {/* Photographic Developing Tray */}
+          <div className="w-72 h-[450px] bg-stone-900 border-8 border-stone-950 rounded-2xl flex items-center justify-center shadow-2xl relative overflow-hidden p-6 bg-gradient-to-b from-stone-900 to-stone-950">
+            {/* Red Safelight Ambient Pulse */}
+            <div className="absolute inset-0 bg-red-600/10 pointer-events-none z-10 animate-pulse" />
+            
+            {/* Liquid Ripple Overlay waves */}
+            <div className="absolute inset-0 opacity-15 pointer-events-none z-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-900 via-transparent to-transparent bg-[size:100%_20px] animate-[bounce_4s_infinite]" />
+            
+            {/* Developing paper inside the chemical bath */}
+            <div className="w-44 h-[380px] bg-stone-100 rounded shadow-2xl border-2 border-stone-200 p-2 flex flex-col justify-between relative overflow-hidden select-none">
+              {/* Chemical Exposure Filter applied dynamically */}
+              <div 
+                className="w-full h-full object-cover transition-all duration-300 ease-linear"
+                style={{
+                  filter: `grayscale(${Math.max(0, 1 - printProgress / 60)}) blur(${Math.max(0, 4 - printProgress / 20)}px) brightness(${0.5 + printProgress / 200}) contrast(${0.3 + printProgress / 140})`,
+                  opacity: Math.min(1, 0.2 + printProgress / 100),
+                }}
+              >
+                {compositeUrl ? (
+                  <img src={compositeUrl} alt="developing strip" className="w-full h-full object-contain" />
+                ) : (
+                  <div className="w-full h-full flex flex-col justify-around gap-2 p-1">
+                    {photos.slice(0, 3).map((p, i) => (
+                      <div key={i} className="w-full aspect-[4/3] bg-stone-300 rounded animate-pulse" />
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Paper grain/developer lines texture */}
+              <div className="absolute inset-0 opacity-5 bg-[linear-gradient(rgba(0,0,0,0.15)_1px,transparent_1px)] bg-[size:100%_4px]" />
+            </div>
           </div>
-          <p className="text-stone-500 text-xs mt-6 tracking-wide italic">
-            Please wait while the photographic silver halide particles stabilize.
+          <p className="text-red-500/85 text-[10px] mt-6 tracking-widest font-black uppercase animate-pulse">
+            Safelight Active • Halide grain stabilizing...
           </p>
         </div>
       ) : (
@@ -428,8 +571,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
             <h2 className="text-2xl md:text-3xl font-serif font-bold text-stone-100">Your Photo Strip is Ready!</h2>
             <p className="text-stone-400 text-xs mt-1">Your photo exists only in-memory and will be deleted once you close or reload.</p>
           </div>
-
-          {/* Canvas placeholder */}
 
           {/* Photo Strip Frame Preview with shadow & physical paper feeling */}
           <div className="max-w-[260px] w-full bg-stone-950/40 p-4 border border-stone-850 rounded-2xl shadow-2xl mb-8 flex justify-center">
@@ -482,6 +623,23 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
                 <Download className="w-4.5 h-4.5" /> Download Photo Strip
               </button>
 
+              {/* Loop Video Download button */}
+              {loopVideoUrl ? (
+                <a
+                  href={loopVideoUrl}
+                  download={`photobooth_loop_${Date.now()}.webm`}
+                  onClick={() => sounds.playShutter()}
+                  className="col-span-2 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-stone-100 font-bold transition-all transform active:scale-95 shadow-[0_4px_15px_rgba(8,145,178,0.25)] flex items-center justify-center gap-2 cursor-pointer text-xs"
+                >
+                  <Video className="w-4 h-4" /> Download Animated Video Loop
+                </a>
+              ) : loopLoading ? (
+                <div className="col-span-2 py-2.5 rounded-xl bg-stone-900 border border-stone-850 text-stone-500 font-bold flex items-center justify-center gap-2 text-xs">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-stone-800 border-t-cyan-500 animate-spin" />
+                  <span>Compiling Loop Video...</span>
+                </div>
+              ) : null}
+
               {/* Copy */}
               <button
                 onClick={handleCopyToClipboard}
@@ -502,7 +660,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
 
             {/* Navigation options */}
             <div className="flex gap-3 mt-2 border-t border-stone-800/80 pt-4 justify-between">
-              {/* Take Another */}
               <button
                 onClick={() => {
                   sounds.playClick();
@@ -513,7 +670,6 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
                 <RefreshCw className="w-3.5 h-3.5" /> Shoot Again
               </button>
 
-              {/* Exit curtain */}
               <button
                 onClick={() => {
                   sounds.playClick();

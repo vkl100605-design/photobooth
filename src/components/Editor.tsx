@@ -36,6 +36,16 @@ const BRUSH_TYPES = [
   { id: "brush", name: "Art Brush", width: 10, opacity: 1 },
   { id: "marker", name: "Round Marker", width: 22, opacity: 1 },
   { id: "highlighter", name: "Highlighter", width: 32, opacity: 0.35 },
+  { id: "sharpie", name: "Sharpie Pen", width: 6, opacity: 0.92 },
+];
+
+const WASHI_TAPES = [
+  { name: "Blush Grid", color: "#fbcfe8", pattern: "grid" },
+  { name: "Mint Stripe", color: "#bbf7d0", pattern: "stripes" },
+  { name: "Honey Solid", color: "#fef08a", pattern: "solid" },
+  { name: "Sky Grid", color: "#bae6fd", pattern: "grid" },
+  { name: "Lavender Stripe", color: "#ddd6fe", pattern: "stripes" },
+  { name: "Peach Solid", color: "#ffedd5", pattern: "solid" },
 ];
 
 export default function Editor({
@@ -553,6 +563,70 @@ export default function Editor({
     fCanvas.renderAll();
   };
 
+  // Adds jagged translucent washi tape strip to canvas
+  const handleAddWashiTape = (color: string, patternType: "solid" | "grid" | "stripes") => {
+    if (!fCanvas || !fabricModule) return;
+    sounds.playClick();
+
+    // Standard horizontal tape dimensions: 150 wide x 36 high
+    const pathStr = "M 5 0 L 0 6 L 4 12 L 0 18 L 4 24 L 0 30 L 5 36 L 145 36 L 140 30 L 144 24 L 140 18 L 144 12 L 140 6 L 145 0 Z";
+    
+    let tapeFill: any = color;
+
+    if (patternType === "grid") {
+      const patternCanvas = document.createElement("canvas");
+      patternCanvas.width = 12;
+      patternCanvas.height = 12;
+      const pCtx = patternCanvas.getContext("2d")!;
+      pCtx.fillStyle = color;
+      pCtx.fillRect(0, 0, 12, 12);
+      pCtx.strokeStyle = "rgba(0,0,0,0.15)";
+      pCtx.lineWidth = 1;
+      pCtx.strokeRect(0, 0, 12, 12);
+      
+      tapeFill = new fabricModule.fabric.Pattern({
+        source: patternCanvas,
+        repeat: "repeat"
+      });
+    } else if (patternType === "stripes") {
+      const patternCanvas = document.createElement("canvas");
+      patternCanvas.width = 12;
+      patternCanvas.height = 12;
+      const pCtx = patternCanvas.getContext("2d")!;
+      pCtx.fillStyle = color;
+      pCtx.fillRect(0, 0, 12, 12);
+      pCtx.strokeStyle = "rgba(0,0,0,0.15)";
+      pCtx.lineWidth = 2.5;
+      pCtx.beginPath();
+      pCtx.moveTo(0, 12);
+      pCtx.lineTo(12, 0);
+      pCtx.stroke();
+
+      tapeFill = new fabricModule.fabric.Pattern({
+        source: patternCanvas,
+        repeat: "repeat"
+      });
+    }
+
+    const tape = new fabricModule.fabric.Path(pathStr, {
+      fill: tapeFill,
+      opacity: 0.72,
+      left: fCanvas.width / 2,
+      top: fCanvas.height / 2,
+      originX: "center",
+      originY: "center",
+      cornerColor: "#e5e7eb",
+      cornerSize: 10,
+      transparentCorners: false,
+      scaleX: 1.2,
+      scaleY: 1.2,
+    });
+
+    fCanvas.add(tape);
+    fCanvas.setActiveObject(tape);
+    fCanvas.renderAll();
+  };
+
   // Adds customizable text box to active workspace center
   const handleAddText = () => {
     if (!fCanvas || !fabricModule || !textInput.trim()) return;
@@ -799,20 +873,45 @@ export default function Editor({
             </div>
           )}
 
-          {/* Sub-Panel: Stickers List */}
+          {/* Sub-Panel: Stickers Pack */}
           {activeTool === "sticker" && (
             <div className="bg-stone-900/40 border border-stone-850 p-4 rounded-2xl shadow-lg flex flex-col gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Stickers Pack</span>
-              <div className="grid grid-cols-5 gap-2 max-h-[220px] overflow-y-auto pr-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Classic Emojis</span>
+              <div className="grid grid-cols-5 gap-2 max-h-[140px] overflow-y-auto pr-1">
                 {EMOJI_STICKERS.map((emoji, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleAddSticker(emoji)}
-                    className="aspect-square rounded-lg bg-stone-950 hover:bg-stone-850 border border-stone-800 text-2xl flex items-center justify-center cursor-pointer transition-colors"
+                    className="aspect-square rounded-lg bg-stone-950 hover:bg-stone-850 border border-stone-800 text-xl flex items-center justify-center cursor-pointer transition-colors"
                   >
                     {emoji}
                   </button>
                 ))}
+              </div>
+
+              <div className="border-t border-stone-850 pt-2.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block mb-2">Torn Washi Tapes</span>
+                <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
+                  {WASHI_TAPES.map((tape, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleAddWashiTape(tape.color, tape.pattern as any)}
+                      className="h-7 rounded-md border border-stone-800 flex items-center justify-center cursor-pointer hover:border-stone-600 transition-colors text-[9px] font-bold text-stone-900 relative overflow-hidden"
+                      style={{
+                        backgroundColor: tape.color,
+                        opacity: 0.85,
+                      }}
+                    >
+                      {tape.pattern === "grid" && (
+                        <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(0,0,0,1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,1)_1px,transparent_1px)] bg-[size:5px_5px]" />
+                      )}
+                      {tape.pattern === "stripes" && (
+                        <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,rgba(0,0,0,1)_25%,transparent_25%,transparent_50%,rgba(0,0,0,1)_50%,rgba(0,0,0,1)_75%,transparent_75%,transparent)] bg-[size:6px_6px]" />
+                      )}
+                      <span className="relative z-10 select-none drop-shadow-sm opacity-60 font-mono uppercase tracking-wider">{tape.name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
