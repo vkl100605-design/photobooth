@@ -439,13 +439,42 @@ export default function CameraFeed({
     <div className="w-full max-w-4xl mx-auto px-4 py-6 flex flex-col items-center justify-center min-h-[88vh] relative">
       <AnimatePresence>
         {flashActive && (
-          <motion.div
-            initial={{ opacity: 1 }}
-            animate={{ opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="absolute inset-0 bg-white z-50 pointer-events-none"
-          />
+          <div className="absolute inset-0 z-50 pointer-events-none overflow-hidden flex items-center justify-center">
+            {/* Main magnesium burst expander */}
+            <motion.div
+              initial={{ scale: 0, opacity: 1 }}
+              animate={{ scale: [0, 1.2, 2.5], opacity: [1, 1, 0] }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+              className="absolute w-96 h-96 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,1)_0%,rgba(253,224,71,0.8)_40%,rgba(251,146,60,0.1)_70%,transparent_100%)] filter blur-md"
+            />
+            {/* Outer flash blast lens flare lines */}
+            <motion.div
+              initial={{ opacity: 1, scaleX: 0 }}
+              animate={{ opacity: [1, 0], scaleX: [0, 3] }}
+              transition={{ duration: 0.5 }}
+              className="absolute w-full h-2 bg-gradient-to-r from-transparent via-white to-transparent transform rotate-[15deg] filter blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 1, scaleX: 0 }}
+              animate={{ opacity: [1, 0], scaleX: [0, 3] }}
+              transition={{ duration: 0.5, delay: 0.05 }}
+              className="absolute w-full h-2 bg-gradient-to-r from-transparent via-white to-transparent transform rotate-[-45deg] filter blur-sm"
+            />
+            {/* Screen-wide white glow overlay */}
+            <motion.div
+              initial={{ opacity: 1 }}
+              animate={{ opacity: [1, 0.9, 0] }}
+              transition={{ duration: 0.9 }}
+              className="absolute inset-0 bg-white/70"
+            />
+            {/* Residual lens-burn tint overlay */}
+            <motion.div
+              initial={{ opacity: 0.35 }}
+              animate={{ opacity: [0.35, 0] }}
+              transition={{ duration: 0.8, ease: "easeIn" }}
+              className="absolute inset-0 bg-amber-500/10 mix-blend-color"
+            />
+          </div>
         )}
       </AnimatePresence>
 

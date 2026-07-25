@@ -58,12 +58,13 @@ export interface FilterPreset {
 
 export const FILTERS: FilterPreset[] = [
   { id: "original", name: "Original Color", cssFilter: "none" },
+  { id: "kodak-chrome", name: "Kodachrome 1974", cssFilter: "contrast(1.15) saturate(1.25) sepia(0.12) hue-rotate(-6deg)" },
+  { id: "fuji-superia", name: "Fuji Superia 400", cssFilter: "contrast(1.05) saturate(1.1) brightness(1.03) hue-rotate(6deg)" },
+  { id: "cyanotype", name: "Cyanotype Prussian", cssFilter: "grayscale(1) contrast(1.35) brightness(0.9) sepia(0.55) hue-rotate(185deg) saturate(3)" },
   { id: "vintage", name: "Vintage Warmth", cssFilter: "sepia(0.35) contrast(0.95) saturate(1.1) brightness(1.02)" },
   { id: "bw", name: "Classic B&W", cssFilter: "grayscale(1) contrast(1.1)" },
   { id: "warm", name: "Warm Film", cssFilter: "sepia(0.2) saturate(1.15) contrast(0.95) hue-rotate(-5deg)" },
   { id: "moonlight", name: "Moonlight", cssFilter: "contrast(1.05) saturate(0.8) hue-rotate(180deg) brightness(0.95)" },
-  { id: "kodak", name: "Kodak Gold", cssFilter: "sepia(0.15) saturate(1.3) contrast(1.05) brightness(1.02)" },
-  { id: "fuji", name: "Fujifilm Superia", cssFilter: "saturate(0.9) contrast(1.1) hue-rotate(5deg) brightness(0.98)" },
   { id: "sepia", name: "Classic Sepia", cssFilter: "sepia(0.8) contrast(0.9) brightness(0.95)" },
   { id: "vintage-matte", name: "Vintage Matte", cssFilter: "contrast(0.85) brightness(1.05) sepia(0.08) saturate(0.9)" },
 ];

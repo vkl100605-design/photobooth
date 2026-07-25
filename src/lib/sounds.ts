@@ -278,6 +278,153 @@ class SoundManager {
       console.warn("Failed to play chemical wash sound:", e);
     }
   }
+
+  private soundtrackActive: boolean = false;
+  private soundtrackNodes: { oscs: OscillatorNode[], filter: BiquadFilterNode, gain: GainNode, rumble: OscillatorNode } | null = null;
+
+  public playCrackleLoop() {
+    if (!this.soundtrackActive) return;
+    try {
+      const context = this.init();
+      const now = context.currentTime;
+
+      // Play random record scratch pop
+      const clickOsc = context.createOscillator();
+      const clickGain = context.createGain();
+      clickOsc.type = "sine";
+      clickOsc.frequency.setValueAtTime(1200 + Math.random() * 2500, now);
+      clickGain.gain.setValueAtTime(0.004 + Math.random() * 0.007, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.004);
+
+      clickOsc.connect(clickGain);
+      clickGain.connect(context.destination);
+      clickOsc.start();
+      clickOsc.stop(now + 0.005);
+    } catch (e) {
+      // ignore
+    }
+
+    setTimeout(() => this.playCrackleLoop(), 100 + Math.random() * 600);
+  }
+
+  public startVinylSoundtrack() {
+    if (this.soundtrackActive) return;
+    this.soundtrackActive = true;
+    
+    try {
+      const context = this.init();
+      const now = context.currentTime;
+
+      // Start crackles
+      this.playCrackleLoop();
+
+      // Start turntable rumble
+      const rumble = context.createOscillator();
+      const rumbleGain = context.createGain();
+      rumble.type = "sawtooth";
+      rumble.frequency.value = 45; // Turntable low end hum
+      rumbleGain.gain.value = 0.004;
+
+      const rumbleFilter = context.createBiquadFilter();
+      rumbleFilter.type = "lowpass";
+      rumbleFilter.frequency.value = 70;
+
+      rumble.connect(rumbleFilter);
+      rumbleFilter.connect(rumbleGain);
+      rumbleGain.connect(context.destination);
+      rumble.start();
+
+      // Chord progression: Cmaj7 -> Am7 -> Fmaj7 -> G6
+      const chordSeq = [
+        [130.81, 164.81, 196.00, 246.94], // Cmaj7
+        [110.00, 130.81, 164.81, 196.00], // Am7
+        [87.31, 220.00, 130.81, 164.81],  // Fmaj7
+        [98.00, 246.94, 146.83, 164.81]   // G6
+      ];
+
+      const oscs: OscillatorNode[] = [];
+      const filter = context.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 450; // soft low pass filter
+
+      // Slow LFO for filter sweep
+      const filterLfo = context.createOscillator();
+      const filterLfoGain = context.createGain();
+      filterLfo.type = "sine";
+      filterLfo.frequency.value = 0.15; // slow filter sweep
+      filterLfoGain.gain.value = 100;
+      filterLfo.connect(filterLfoGain);
+      filterLfoGain.connect(filter.frequency);
+      filterLfo.start();
+
+      const mainGain = context.createGain();
+      mainGain.gain.value = 0.035; // soft background level
+
+      filter.connect(mainGain);
+      mainGain.connect(context.destination);
+
+      // Create chord oscillators
+      for (let i = 0; i < 4; i++) {
+        const osc = context.createOscillator();
+        osc.type = "triangle"; // vintage soft synth
+        osc.frequency.setValueAtTime(chordSeq[0][i], now);
+        osc.connect(filter);
+        osc.start();
+        oscs.push(osc);
+      }
+
+      // Loop chord changes
+      let chordIndex = 0;
+      const interval = setInterval(() => {
+        if (!this.soundtrackActive) {
+          clearInterval(interval);
+          return;
+        }
+        chordIndex = (chordIndex + 1) % chordSeq.length;
+        const chord = chordSeq[chordIndex];
+        const transitionTime = context.currentTime + 1.8; // smooth pitch glide!
+
+        oscs.forEach((osc, i) => {
+          osc.frequency.exponentialRampToValueAtTime(chord[i], transitionTime);
+        });
+      }, 6000);
+
+      this.soundtrackNodes = {
+        oscs,
+        filter,
+        gain: mainGain,
+        rumble
+      };
+    } catch (e) {
+      console.warn("Failed to play soundtrack:", e);
+    }
+  }
+
+  public stopVinylSoundtrack() {
+    this.soundtrackActive = false;
+    if (this.soundtrackNodes) {
+      try {
+        const { oscs, rumble, gain } = this.soundtrackNodes;
+        const context = this.init();
+        gain.gain.setValueAtTime(gain.gain.value, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.4);
+
+        setTimeout(() => {
+          oscs.forEach((osc) => {
+            try { osc.stop(); } catch (err) { }
+          });
+          try { rumble.stop(); } catch (err) { }
+        }, 500);
+      } catch (e) {
+        // ignore
+      }
+      this.soundtrackNodes = null;
+    }
+  }
+
+  public getIsSoundtrackActive() {
+    return this.soundtrackActive;
+  }
 }
 
 export const sounds = new SoundManager();

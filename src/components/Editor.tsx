@@ -15,7 +15,8 @@ import {
   MousePointer,
   ChevronUp,
   ChevronDown,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from "lucide-react";
 
 // Pre-defined font options for typography choices
@@ -37,6 +38,7 @@ const BRUSH_TYPES = [
   { id: "marker", name: "Round Marker", width: 22, opacity: 1 },
   { id: "highlighter", name: "Highlighter", width: 32, opacity: 0.35 },
   { id: "sharpie", name: "Sharpie Pen", width: 6, opacity: 0.92 },
+  { id: "neon", name: "Neon Glow", width: 10, opacity: 0.95 },
 ];
 
 const WASHI_TAPES = [
@@ -447,6 +449,14 @@ export default function Editor({
         const g = parseInt(hex.substring(2, 4), 16) || 224;
         const b = parseInt(hex.substring(4, 6), 16) || 71;
         finalColor = `rgba(${r}, ${g}, ${b}, ${brushPreset.opacity})`;
+      } else if (brushPreset.id === "neon") {
+        // Apply neon drop shadow glow
+        brush.shadow = new fabricModule.fabric.Shadow({
+          color: brushColor,
+          blur: 15,
+          offsetX: 0,
+          offsetY: 0
+        });
       }
       brush.color = finalColor;
       fCanvas.freeDrawingBrush = brush;
@@ -649,6 +659,35 @@ export default function Editor({
     fCanvas.setActiveObject(text);
     fCanvas.renderAll();
     setTextInput("");
+  };
+
+  // Adds distressed red ink date stamp to canvas
+  const handleAddDateStamp = () => {
+    if (!fCanvas || !fabricModule) return;
+    sounds.playClick();
+
+    const now = new Date();
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const dateStr = `${months[now.getMonth()]} ${String(now.getDate()).padStart(2, "0")}, ${now.getFullYear()}`;
+
+    const dateStamp = new fabricModule.fabric.Text(dateStr, {
+      fontFamily: "Courier New",
+      fontWeight: "bold",
+      fontSize: 22,
+      fill: "rgba(220, 38, 38, 0.72)", // distressed red ink
+      left: fCanvas.width / 2,
+      top: fCanvas.height / 2,
+      originX: "center",
+      originY: "center",
+      angle: -8 + Math.random() * 16, // random hand stamp tilt angle
+      cornerColor: "#e5e7eb",
+      cornerSize: 10,
+      transparentCorners: false,
+    });
+
+    fCanvas.add(dateStamp);
+    fCanvas.setActiveObject(dateStamp);
+    fCanvas.renderAll();
   };
 
   // Layer manipulations
@@ -963,6 +1002,16 @@ export default function Editor({
                   className="py-1.5 px-3 rounded-lg bg-amber-500 text-stone-950 font-bold text-xs hover:bg-amber-400 disabled:opacity-40 cursor-pointer transition-colors"
                 >
                   Insert
+                </button>
+              </div>
+
+              <div className="border-t border-stone-850 pt-2.5 flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Distressed Ink Stamps</span>
+                <button
+                  onClick={handleAddDateStamp}
+                  className="w-full py-2 rounded-lg border border-red-900/30 hover:border-red-800 bg-red-950/20 hover:bg-red-950/35 text-red-400 font-bold transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Stamp Current Date
                 </button>
               </div>
             </div>

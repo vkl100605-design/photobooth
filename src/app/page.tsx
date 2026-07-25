@@ -13,7 +13,7 @@ import Editor from "@/components/Editor";
 import ConnectManager from "@/components/ConnectManager";
 import GuestInterface from "@/components/GuestInterface";
 import GuestSimulator from "@/components/GuestSimulator";
-import { Camera, Users, VolumeX, Volume2 } from "lucide-react";
+import { Camera, Users, VolumeX, Volume2, Disc } from "lucide-react";
 import { motion } from "framer-motion";
 
 type PagePhase = "landing" | "entering" | "entering-connect" | "booth" | "exiting";
@@ -32,6 +32,14 @@ export default function Home() {
 
   const [phase, setPhase] = useState<PagePhase>("landing");
   const [joinHostId, setJoinHostId] = useState<string | null>(null);
+  const [musicActive, setMusicActive] = useState<boolean>(false);
+
+  // Stop background music if page gets unmounted
+  useEffect(() => {
+    return () => {
+      sounds.stopVinylSoundtrack();
+    };
+  }, []);
 
   // Extract query joining parameter on mount
   useEffect(() => {
@@ -44,10 +52,20 @@ export default function Home() {
     }
   }, []);
 
-  // Sound toggles
   const handleToggleMute = () => {
     sounds.playClick();
     toggleMuted();
+  };
+
+  const handleToggleMusic = () => {
+    sounds.playClick();
+    if (musicActive) {
+      sounds.stopVinylSoundtrack();
+      setMusicActive(false);
+    } else {
+      sounds.startVinylSoundtrack();
+      setMusicActive(true);
+    }
   };
 
   // 1. Landing -> Solo curtain enter flow
@@ -112,14 +130,28 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Mute Button */}
-            <button
-              onClick={handleToggleMute}
-              className="p-2.5 rounded-full bg-stone-900 border border-stone-850 text-stone-400 hover:bg-stone-800 transition-colors shadow cursor-pointer"
-              aria-label={isMuted ? "Unmute sounds" : "Mute sounds"}
-            >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-            </button>
+            {/* Soundtrack & Mute Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleToggleMusic}
+                className={`p-2.5 rounded-full border shadow cursor-pointer transition-all flex items-center justify-center ${
+                  musicActive 
+                    ? "bg-amber-500 border-amber-500 text-stone-950" 
+                    : "bg-stone-900 border-stone-850 text-stone-400 hover:bg-stone-800"
+                }`}
+                aria-label="Toggle Vinyl Soundtrack"
+              >
+                <Disc className={`w-4 h-4 ${musicActive ? "animate-[spin_4s_linear_infinite]" : ""}`} />
+              </button>
+
+              <button
+                onClick={handleToggleMute}
+                className="p-2.5 rounded-full bg-stone-900 border border-stone-850 text-stone-400 hover:bg-stone-800 transition-colors shadow cursor-pointer"
+                aria-label={isMuted ? "Unmute sounds" : "Mute sounds"}
+              >
+                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+            </div>
           </header>
 
           {/* Landing Selection Cabinets */}
@@ -266,10 +298,25 @@ export default function Home() {
               <span className="font-serif font-bold text-stone-300 text-sm tracking-widest uppercase">
                 {multiplayerRole === "host" ? "Group Cabin Host" : "Solo Cabin Interior"}
               </span>
-              {/* Custom visual decoration bulb indicator */}
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse border border-red-400" />
-                <span className="text-[9px] font-bold text-red-500 tracking-wider uppercase">RECORDING ON</span>
+              
+              {/* Controls and indicators */}
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleToggleMusic}
+                  className={`p-2 rounded-full border transition-all flex items-center justify-center cursor-pointer ${
+                    musicActive 
+                      ? "bg-amber-500 border-amber-500 text-stone-950" 
+                      : "bg-stone-900 border-stone-850 text-stone-400 hover:bg-stone-800"
+                  }`}
+                  title="Toggle Vinyl Soundtrack"
+                >
+                  <Disc className={`w-3.5 h-3.5 ${musicActive ? "animate-[spin_4s_linear_infinite]" : ""}`} />
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse border border-red-400" />
+                  <span className="text-[9px] font-bold text-red-500 tracking-wider uppercase">RECORDING ON</span>
+                </div>
               </div>
             </header>
 
