@@ -411,6 +411,11 @@ export default function Editor({
   useEffect(() => {
     if (!fCanvas || !fabricModule) return;
 
+    // Deselect any active objects when switching to drawing/sticker/text tools
+    if (activeTool !== "select") {
+      fCanvas.discardActiveObject().renderAll();
+    }
+
     // Default cursor configurations
     fCanvas.defaultCursor = "default";
     fCanvas.hoverCursor = "move";

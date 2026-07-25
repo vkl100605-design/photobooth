@@ -362,14 +362,6 @@ export default function CameraFeed({
         ctx.restore();
       }
 
-      // 3. Draw a nice dark dividing strip down the middle
-      ctx.strokeStyle = "#44403c";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(600, 0);
-      ctx.lineTo(600, 800);
-      ctx.stroke();
-
       return canvas.toDataURL("image/png");
     }
 
@@ -536,6 +528,7 @@ export default function CameraFeed({
                         ref={remoteVideoRef}
                         autoPlay
                         playsInline
+                        muted
                         className="w-full h-full object-cover"
                       />
                     ) : isSimulatedMultiplayer ? (

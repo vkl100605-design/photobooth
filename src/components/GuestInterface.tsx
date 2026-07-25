@@ -176,6 +176,7 @@ export default function GuestInterface({
                       ref={remoteVideoRef}
                       autoPlay
                       playsInline
+                      muted
                       className={`w-full h-full object-cover ${hostId === "simulator" ? "filter sepia-[0.5] hue-rotate-[90deg] contrast-[1.2]" : ""}`}
                     />
                   ) : (

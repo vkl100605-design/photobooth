@@ -181,8 +181,19 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (multiplayerRole !== "host" || !PeerClass) return;
 
-    // Create host Peer instance
-    const peer = new PeerClass();
+    // Create host Peer instance with STUN servers for NAT traversal
+    const peer = new PeerClass(undefined, {
+      debug: 1,
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
+          { urls: "stun:stun3.l.google.com:19302" },
+          { urls: "stun:stun4.l.google.com:19302" }
+        ]
+      }
+    });
     setPeerInstance(peer);
 
     peer.on("open", (id: string) => {
@@ -281,7 +292,18 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
       if (!PeerClass) return;
       setMultiplayerRoleState("guest");
 
-      const peer = new PeerClass();
+      const peer = new PeerClass(undefined, {
+        debug: 1,
+        config: {
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" },
+            { urls: "stun:stun3.l.google.com:19302" },
+            { urls: "stun:stun4.l.google.com:19302" }
+          ]
+        }
+      });
       setPeerInstance(peer);
 
       peer.on("open", () => {
