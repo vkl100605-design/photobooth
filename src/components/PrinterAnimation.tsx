@@ -5,6 +5,7 @@ import { useBooth, FILTERS } from "@/contexts/BoothContext";
 import { sounds } from "@/lib/sounds";
 import { Download, Clipboard, RefreshCw, LogOut, Printer, Sparkles, Video } from "lucide-react";
 import confetti from "canvas-confetti";
+import { motion } from "framer-motion";
 
 export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
   const { 
@@ -18,7 +19,8 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
     setLoopVideoUrl 
   } = useBooth();
 
-  const [isDeveloping, setIsDeveloping] = useState(true);
+  const [animationStage, setAnimationStage] = useState<"developing" | "printing" | "ready">("developing");
+  const [isFallen, setIsFallen] = useState(false);
   const [printProgress, setPrintProgress] = useState(0);
   const [compositeUrl, setCompositeUrl] = useState<string>("");
   const [loopLoading, setLoopLoading] = useState(false);
@@ -35,7 +37,9 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
       setPrintProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          setIsDeveloping(false);
+          setAnimationStage("printing");
+          // Play stepper motor whirr
+          sounds.playPrinterWhirr(3.5);
           return 100;
         }
         return prev + 2;
@@ -44,6 +48,17 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle mechanical print cutter release
+  useEffect(() => {
+    if (animationStage === "printing") {
+      const timer = setTimeout(() => {
+        sounds.playPrinterCut();
+        setIsFallen(true);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [animationStage]);
 
   // Determine standard video format supported by user's browser
   const getSupportedMimeType = () => {
@@ -510,24 +525,24 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[85vh] relative">
-      {/* Developing Animation */}
-      {isDeveloping ? (
+      {/* 1. Developing Stage */}
+      {animationStage === "developing" && (
         <div className="flex flex-col items-center text-center py-8">
           {/* Chamber glow indicator */}
           <div className="relative w-48 h-10 bg-stone-900 border border-stone-850 rounded-lg flex items-center justify-center shadow-inner overflow-hidden mb-8">
             <div
               style={{ width: `${printProgress}%` }}
-              className="absolute left-0 top-0 bottom-0 bg-red-600/30 transition-all duration-100 ease-linear"
+              className="absolute left-0 top-0 bottom-0 bg-red-650/30 transition-all duration-100 ease-linear"
             />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-red-500 z-10 animate-pulse flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-red-555 z-10 animate-pulse flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" /> Darkroom Developing... {printProgress}%
             </span>
           </div>
 
           {/* Photographic Developing Tray */}
           <div className="w-72 h-[450px] bg-stone-900 border-8 border-stone-950 rounded-2xl flex items-center justify-center shadow-2xl relative overflow-hidden p-6 bg-gradient-to-b from-stone-900 to-stone-950">
-            {/* Red Safelight Ambient Pulse */}
-            <div className="absolute inset-0 bg-red-600/10 pointer-events-none z-10 animate-pulse" />
+            {/* Red Safelight Pulse */}
+            <div className="absolute inset-0 bg-red-655/10 pointer-events-none z-10 animate-pulse" />
             
             {/* Liquid Ripple Overlay waves */}
             <div className="absolute inset-0 opacity-15 pointer-events-none z-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-900 via-transparent to-transparent bg-[size:100%_20px] animate-[bounce_4s_infinite]" />
@@ -561,7 +576,93 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
             Safelight Active • Halide grain stabilizing...
           </p>
         </div>
-      ) : (
+      )}
+
+      {/* 2. Printing Slide Stage */}
+      {animationStage === "printing" && (
+        <div className="flex flex-col items-center justify-center text-center py-8 w-full max-w-sm">
+          <span className="font-sans text-xs tracking-widest text-stone-400 uppercase font-black mb-1.5">Machine Output</span>
+          <h2 className="text-xl font-serif font-black text-stone-100 uppercase tracking-wider mb-8">Printing Photo Strip</h2>
+
+          {/* Vintage Printer Cabinet slot */}
+          <div className="w-80 h-72 bg-gradient-to-b from-stone-900 to-stone-950 border-4 border-stone-800 rounded-3xl relative shadow-2xl flex flex-col items-center justify-start pt-16 overflow-hidden">
+            
+            {/* Grill line detailing */}
+            <div className="absolute top-4 w-12 h-1.5 bg-stone-950 border border-stone-850 rounded-full" />
+
+            {/* Printer text label */}
+            <span className="text-[7px] font-mono tracking-widest uppercase font-bold text-stone-600 absolute top-7">
+              AUTOMATIC PHOTO CABIN RECEIVER
+            </span>
+
+            {/* The slot */}
+            <div className="w-56 h-3.5 bg-stone-950 border border-stone-850 shadow-inner rounded-full relative z-20 flex items-center justify-center overflow-visible">
+              <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-red-600/40 blur-xs" />
+            </div>
+
+            {/* Descending Photostrip container */}
+            <div className="relative w-36 h-[220px] overflow-hidden bg-transparent z-10 -mt-1 flex justify-center">
+              {compositeUrl && (
+                <motion.div
+                  initial={isFallen ? false : { y: "-100%" }}
+                  animate={
+                    isFallen 
+                      ? { y: 15, rotate: 6, scale: 0.95 }
+                      : { y: "0%" }
+                  }
+                  transition={
+                    isFallen
+                      ? { type: "spring", stiffness: 80, damping: 10 }
+                      : { duration: 3.5, ease: "linear" }
+                  }
+                  onClick={() => {
+                    if (isFallen) {
+                      sounds.playClick();
+                      confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                      });
+                      setAnimationStage("ready");
+                    }
+                  }}
+                  className={`w-[110px] bg-stone-100 rounded-sm p-1 shadow-[0_10px_30px_rgba(0,0,0,0.5)] border border-stone-300/65 origin-top relative ${
+                    isFallen ? "cursor-pointer hover:scale-102 active:scale-98 transition-transform" : ""
+                  }`}
+                >
+                  {/* Paper shine overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none" />
+                  <img src={compositeUrl} alt="printing strip" className="w-full h-auto select-none" />
+                </motion.div>
+              )}
+            </div>
+
+            {/* Cabinet light indicating print state */}
+            <div className="absolute bottom-6 flex items-center gap-1.5 px-3 py-1 bg-stone-950/80 border border-stone-850 rounded-full z-20">
+              <div className={`w-2 h-2 rounded-full ${isFallen ? "bg-emerald-500 animate-pulse" : "bg-amber-500 animate-ping"}`} />
+              <span className="text-[8px] font-mono tracking-wider text-stone-400 uppercase">
+                {isFallen ? "READY TO COLLECT" : "SLIDING OUTPUT"}
+              </span>
+            </div>
+
+          </div>
+
+          {/* Retrieve prompt */}
+          {isFallen && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="text-amber-500 text-[10px] mt-6 tracking-widest font-black uppercase"
+            >
+              ✦ Click photo strip to collect! ✦
+            </motion.p>
+          )}
+        </div>
+      )}
+
+      {/* 3. Ready Actions Stage */}
+      {animationStage === "ready" && (
         <div className="w-full flex flex-col items-center">
           {/* Header */}
           <div className="text-center mb-6">

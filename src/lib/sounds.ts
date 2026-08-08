@@ -425,6 +425,77 @@ class SoundManager {
   public getIsSoundtrackActive() {
     return this.soundtrackActive;
   }
+
+  public playPrinterWhirr(durationSeconds = 3.5) {
+    try {
+      const context = this.init();
+      const now = context.currentTime;
+
+      // Motor buzz
+      const osc = context.createOscillator();
+      const oscGain = context.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(110, now);
+      oscGain.gain.setValueAtTime(0.003, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + durationSeconds);
+
+      osc.connect(oscGain);
+      oscGain.connect(context.destination);
+      osc.start(now);
+      osc.stop(now + durationSeconds);
+
+      // Low hum
+      const hum = context.createOscillator();
+      const humGain = context.createGain();
+      hum.type = "triangle";
+      hum.frequency.setValueAtTime(60, now);
+      humGain.gain.setValueAtTime(0.012, now);
+      humGain.gain.exponentialRampToValueAtTime(0.001, now + durationSeconds);
+
+      hum.connect(humGain);
+      humGain.connect(context.destination);
+      hum.start(now);
+      hum.stop(now + durationSeconds);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  public playPrinterCut() {
+    try {
+      const context = this.init();
+      const now = context.currentTime;
+
+      const osc = context.createOscillator();
+      const oscGain = context.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.linearRampToValueAtTime(30, now + 0.16);
+
+      oscGain.gain.setValueAtTime(0.04, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+      osc.connect(oscGain);
+      oscGain.connect(context.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+
+      // Cutter friction rasp
+      const rasp = context.createOscillator();
+      const raspGain = context.createGain();
+      rasp.type = "sawtooth";
+      rasp.frequency.setValueAtTime(280, now);
+      raspGain.gain.setValueAtTime(0.008, now);
+      raspGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+      rasp.connect(raspGain);
+      raspGain.connect(context.destination);
+      rasp.start(now);
+      rasp.stop(now + 0.08);
+    } catch (e) {
+      // ignore
+    }
+  }
 }
 
 export const sounds = new SoundManager();
