@@ -16,7 +16,12 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
     editedStripUrl, 
     resetSession,
     loopVideoUrl,
-    setLoopVideoUrl 
+    setLoopVideoUrl,
+    multiplayerRole,
+    localStream,
+    remoteStream,
+    hostLobbyName,
+    guestLobbyName,
   } = useBooth();
 
   const [animationStage, setAnimationStage] = useState<"developing" | "printing" | "ready">("developing");
@@ -523,8 +528,66 @@ export default function PrinterAnimation({ onExit }: { onExit: () => void }) {
     printWindow.document.close();
   };
 
+  // WebRTC Live face-to-face floating bubble
+  const renderLiveCallBubble = () => {
+    if (multiplayerRole !== "host" && multiplayerRole !== "guest") return null;
+    if (!localStream && !remoteStream) return null;
+
+    return (
+      <div className="fixed top-20 right-6 z-50 bg-stone-900/90 border border-stone-800 rounded-2xl p-2 shadow-[0_15px_40px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 backdrop-blur animate-in slide-in-from-top duration-300">
+        <div className="flex items-center gap-1.5 justify-between px-1">
+          <span className="text-[6px] font-mono tracking-widest text-amber-500 font-bold uppercase">LIVE CABIN CALL</span>
+          <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse" />
+        </div>
+        
+        <div className="flex gap-1.5">
+          {/* My Video */}
+          <div className="w-12 h-12 rounded overflow-hidden border border-stone-850 bg-stone-950 relative">
+            {localStream ? (
+              <video
+                ref={(el) => {
+                  if (el) el.srcObject = localStream;
+                }}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover transform -scale-x-100"
+              />
+            ) : (
+              <div className="w-full h-full bg-stone-950" />
+            )}
+            <span className="absolute bottom-0.5 left-0.5 bg-stone-950/70 text-[5px] px-0.5 rounded font-bold text-stone-300">You</span>
+          </div>
+
+          {/* Peer Video */}
+          <div className="w-12 h-12 rounded overflow-hidden border border-stone-850 bg-stone-950 relative">
+            {remoteStream ? (
+              <video
+                ref={(el) => {
+                  if (el) el.srcObject = remoteStream;
+                }}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-stone-950 text-stone-600 text-[5px] font-semibold">
+                Offline
+              </div>
+            )}
+            <span className="absolute bottom-0.5 left-0.5 bg-stone-950/70 text-[5px] px-0.5 rounded font-bold text-stone-300">
+              {multiplayerRole === "host" ? guestLobbyName : hostLobbyName}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[85vh] relative">
+      {renderLiveCallBubble()}
       {/* 1. Developing Stage */}
       {animationStage === "developing" && (
         <div className="flex flex-col items-center text-center py-8">

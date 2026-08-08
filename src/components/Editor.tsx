@@ -40,7 +40,7 @@ export default function Editor({
   onNext,
 }: {
   onBack: () => void;
-  onNext: () => void;
+  onNext: (dataUrl?: string) => void;
 }) {
   const {
     photos,
@@ -50,6 +50,14 @@ export default function Editor({
     setEditedStripUrl,
     guestAnnotation,
     setGuestAnnotation,
+    multiplayerRole,
+    sendGuestAction,
+    broadcastToGuests,
+    peerCanvasJson,
+    localStream,
+    remoteStream,
+    hostLobbyName,
+    guestLobbyName,
   } = useBooth();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -366,26 +374,57 @@ export default function Editor({
     });
   }, [historyPointer]);
 
+  const broadcastCanvasState = useCallback(() => {
+    if (isProcessing || !fCanvas) return;
+    const json = JSON.stringify(fCanvas.toJSON());
+    if (multiplayerRole === "host") {
+      broadcastToGuests({ type: "CANVAS_UPDATE", json });
+    } else if (multiplayerRole === "guest") {
+      sendGuestAction({ type: "CANVAS_UPDATE", json });
+    }
+  }, [fCanvas, isProcessing, multiplayerRole, broadcastToGuests, sendGuestAction]);
+
+  const lastSyncTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!fCanvas || !peerCanvasJson || peerCanvasJson.timestamp <= lastSyncTimeRef.current) return;
+    lastSyncTimeRef.current = peerCanvasJson.timestamp;
+    
+    setIsProcessing(true);
+    fCanvas.loadFromJSON(peerCanvasJson.json, () => {
+      fCanvas.renderAll();
+      setIsProcessing(false);
+    });
+  }, [peerCanvasJson, fCanvas]);
+
   // Setup Fabric event listeners for history states & object edits
   useEffect(() => {
     if (!fCanvas) return;
 
     const handleObjectAdded = () => {
       saveHistoryState(fCanvas);
+      broadcastCanvasState();
     };
 
     const handleObjectModified = () => {
       saveHistoryState(fCanvas);
+      broadcastCanvasState();
+    };
+
+    const handleObjectRemoved = () => {
+      broadcastCanvasState();
     };
 
     fCanvas.on("object:added", handleObjectAdded);
     fCanvas.on("object:modified", handleObjectModified);
+    fCanvas.on("object:removed", handleObjectRemoved);
 
     return () => {
       fCanvas.off("object:added", handleObjectAdded);
       fCanvas.off("object:modified", handleObjectModified);
+      fCanvas.off("object:removed", handleObjectRemoved);
     };
-  }, [fCanvas, historyPointer, saveHistoryState]);
+  }, [fCanvas, historyPointer, saveHistoryState, broadcastCanvasState]);
 
   // Sync brush changes & cursors to Fabric drawing engine
   useEffect(() => {
@@ -705,11 +744,69 @@ export default function Editor({
     });
     
     setEditedStripUrl(dataUrl);
-    onNext();
+    onNext(dataUrl);
+  };
+
+  // WebRTC Live face-to-face floating bubble
+  const renderLiveCallBubble = () => {
+    if (multiplayerRole !== "host" && multiplayerRole !== "guest") return null;
+    if (!localStream && !remoteStream) return null;
+
+    return (
+      <div className="fixed top-20 right-6 z-50 bg-stone-900/90 border border-stone-800 rounded-2xl p-2 shadow-[0_15px_40px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 backdrop-blur animate-in slide-in-from-top duration-300">
+        <div className="flex items-center gap-1.5 justify-between px-1">
+          <span className="text-[6px] font-mono tracking-widest text-amber-500 font-bold uppercase">LIVE CABIN CALL</span>
+          <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse" />
+        </div>
+        
+        <div className="flex gap-1.5">
+          {/* My Video */}
+          <div className="w-12 h-12 rounded overflow-hidden border border-stone-850 bg-stone-950 relative">
+            {localStream ? (
+              <video
+                ref={(el) => {
+                  if (el) el.srcObject = localStream;
+                }}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover transform -scale-x-100"
+              />
+            ) : (
+              <div className="w-full h-full bg-stone-950" />
+            )}
+            <span className="absolute bottom-0.5 left-0.5 bg-stone-950/70 text-[5px] px-0.5 rounded font-bold text-stone-300">You</span>
+          </div>
+
+          {/* Peer Video */}
+          <div className="w-12 h-12 rounded overflow-hidden border border-stone-850 bg-stone-950 relative">
+            {remoteStream ? (
+              <video
+                ref={(el) => {
+                  if (el) el.srcObject = remoteStream;
+                }}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-stone-950 text-stone-600 text-[5px] font-semibold">
+                Offline
+              </div>
+            )}
+            <span className="absolute bottom-0.5 left-0.5 bg-stone-950/70 text-[5px] px-0.5 rounded font-bold text-stone-300">
+              {multiplayerRole === "host" ? guestLobbyName : hostLobbyName}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="w-full max-w-xl mx-auto px-4 py-4 flex flex-col items-center justify-start min-h-[88vh] relative select-none">
+      {renderLiveCallBubble()}
       
       {/* Editor Header */}
       <div className="w-full flex justify-between items-center mb-6">

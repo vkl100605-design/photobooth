@@ -128,6 +128,8 @@ interface BoothContextType {
   guestFlashActive: boolean;
   setGuestFlashActive: (val: boolean) => void;
   broadcastToGuests: (data: any) => void;
+  peerCanvasJson: { json: string; timestamp: number } | null;
+  setPeerCanvasJson: (val: { json: string; timestamp: number } | null) => void;
 }
 
 const BoothContext = createContext<BoothContextType | undefined>(undefined);
@@ -152,6 +154,7 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   const [activeProp, setActiveProp] = useState<string | null>(null);
   const [guestCountdown, setGuestCountdown] = useState<number | null>(null);
   const [guestFlashActive, setGuestFlashActive] = useState<boolean>(false);
+  const [peerCanvasJson, setPeerCanvasJson] = useState<{ json: string; timestamp: number } | null>(null);
 
   // Multiplayer variables
   const [multiplayerRole, setMultiplayerRoleState] = useState<"host" | "guest" | null>(null);
@@ -289,6 +292,11 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           setSelectedFilter(data.filter);
         } else if (data.type === "UPDATE_PROP") {
           setActiveProp(data.prop);
+        } else if (data.type === "CANVAS_UPDATE") {
+          setPeerCanvasJson({ json: data.json, timestamp: Date.now() });
+        } else if (data.type === "FINISH_EDITING") {
+          setEditedStripUrl(data.editedStripUrl);
+          setStepState("print");
         }
       });
 
@@ -392,6 +400,8 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           } else if (data.type === "FLASH_TRIGGER") {
             setGuestFlashActive(true);
             setTimeout(() => setGuestFlashActive(false), 200);
+          } else if (data.type === "CANVAS_UPDATE") {
+            setPeerCanvasJson({ json: data.json, timestamp: Date.now() });
           }
         });
 
@@ -430,9 +440,10 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
     [PeerClass]
   );
 
-  // Guest calling Host effect when in camera step
+  // Guest calling Host effect when in camera/edit/print steps
   useEffect(() => {
-    if (multiplayerRole !== "guest" || !peerInstance || !hostConnection || !localStream || step !== "camera") return;
+    const isCallStep = step === "camera" || step === "filters" || step === "edit" || step === "print";
+    if (multiplayerRole !== "guest" || !peerInstance || !hostConnection || !localStream || !isCallStep) return;
 
     const call = peerInstance.call(hostConnection.peer, localStream);
     call.on("stream", (remoteStreamInstance: MediaStream) => {
@@ -585,6 +596,8 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         guestFlashActive,
         setGuestFlashActive,
         broadcastToGuests,
+        peerCanvasJson,
+        setPeerCanvasJson,
       }}
     >
       {children}

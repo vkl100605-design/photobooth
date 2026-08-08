@@ -3,16 +3,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useBooth, BACKGROUNDS } from "@/contexts/BoothContext";
 import { sounds } from "@/lib/sounds";
-import { Camera, Smile, Type, Check, Wifi, AlertCircle, Video, X } from "lucide-react";
+import { Camera, Wifi, AlertCircle, Video, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import PrinterAnimation from "@/components/PrinterAnimation";
-
-const EMOJIS = ["❤️", "💖", "✨", "⭐", "🕶️", "👑", "🎩", "🎀", "💬", "🎈", "🎉", "🌸", "👽", "🐱", "🐶", "🦄"];
-const FONTS = [
-  { id: "Georgia", name: "Serif" },
-  { id: "Pacifico", name: "Cursive" },
-  { id: "Courier New", name: "Typewriter" },
-];
+import Editor from "@/components/Editor";
 
 export default function GuestInterface({
   hostId,
@@ -50,11 +44,7 @@ export default function GuestInterface({
     guestFlashActive,
   } = useBooth();
 
-  const [textVal, setTextVal] = useState<string>("");
-  const [textFont, setTextFont] = useState<string>("Pacifico");
-  const [textColor, setTextColor] = useState<string>("#ffffff");
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<"sticker" | "text">("sticker");
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -140,27 +130,7 @@ export default function GuestInterface({
     });
   };
 
-  const handleSendSticker = (emoji: string) => {
-    sounds.playClick();
-    sendGuestAction({
-      type: "ADD_STICKER_COOP",
-      annoType: "sticker",
-      value: emoji,
-    });
-  };
 
-  const handleSendText = () => {
-    if (!textVal.trim()) return;
-    sounds.playClick();
-    sendGuestAction({
-      type: "ADD_STICKER_COOP",
-      annoType: "text",
-      value: textVal.trim(),
-      font: textFont,
-      color: textColor,
-    });
-    setTextVal("");
-  };
 
   return (
     <div 
@@ -452,102 +422,23 @@ export default function GuestInterface({
             </motion.div>
           )}
 
-          {/* STEP: Cooperative Editor annotations */}
+          {/* STEP: Cooperative Editor */}
           {step === "edit" && (
             <motion.div
               key="coop-editor"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full flex flex-col gap-4"
+              className="w-full"
             >
-              <div className="text-center mb-1">
-                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest">Co-Op Scrapbook Mode</span>
-                <h3 className="text-xl font-serif font-bold text-stone-200 mt-1">Inject Stickers & Text</h3>
-              </div>
-
-              {/* Tab Selector */}
-              <div className="grid grid-cols-2 bg-stone-950 border border-stone-850 p-1.5 rounded-xl">
-                <button
-                  onClick={() => setActiveTab("sticker")}
-                  className={`py-2 text-xs font-bold rounded-lg cursor-pointer transition-colors flex justify-center items-center gap-1.5 ${
-                    activeTab === "sticker" ? "bg-stone-900 text-amber-400" : "text-stone-500"
-                  }`}
-                >
-                  <Smile className="w-4 h-4" /> Stickers
-                </button>
-                <button
-                  onClick={() => setActiveTab("text")}
-                  className={`py-2 text-xs font-bold rounded-lg cursor-pointer transition-colors flex justify-center items-center gap-1.5 ${
-                    activeTab === "text" ? "bg-stone-900 text-amber-400" : "text-stone-500"
-                  }`}
-                >
-                  <Type className="w-4 h-4" /> Letters
-                </button>
-              </div>
-
-              {/* Tab contents */}
-              {activeTab === "sticker" ? (
-                <div className="grid grid-cols-4 gap-2 bg-stone-900/40 border border-stone-850 p-4 rounded-2xl">
-                  {EMOJIS.map((emoji, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSendSticker(emoji)}
-                      className="aspect-square rounded-xl bg-stone-950 hover:bg-stone-900 border border-stone-850 text-2xl flex items-center justify-center cursor-pointer transition-transform active:scale-90"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-stone-900/40 border border-stone-850 p-4 rounded-2xl flex flex-col gap-3.5">
-                  <input
-                    type="text"
-                    placeholder="Enter message..."
-                    value={textVal}
-                    onChange={(e) => setTextVal(e.target.value)}
-                    className="w-full bg-stone-950 border border-stone-850 rounded-xl p-3 text-xs text-stone-100 placeholder:text-stone-700 focus:outline-none focus:border-amber-500"
-                  />
-
-                  <div className="grid grid-cols-2 gap-3 items-center">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[8px] font-bold text-stone-500 uppercase tracking-wider">Font Style</span>
-                      <select
-                        value={textFont}
-                        onChange={(e) => setTextFont(e.target.value)}
-                        className="bg-stone-950 border border-stone-850 text-stone-300 p-2 rounded-lg text-[10px] focus:outline-none"
-                      >
-                        {FONTS.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[8px] font-bold text-stone-500 uppercase tracking-wider">Letters Color</span>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="color"
-                          value={textColor}
-                          onChange={(e) => setTextColor(e.target.value)}
-                          className="w-6.5 h-6.5 rounded bg-transparent border border-stone-850 cursor-pointer"
-                        />
-                        <span className="text-[9px] font-mono text-stone-400 uppercase">{textColor}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleSendText}
-                    disabled={!textVal.trim()}
-                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-                  >
-                    <Check className="w-4 h-4" /> Insert on Main Canvas
-                  </button>
-                </div>
-              )}
+              <Editor
+                onBack={() => {}}
+                onNext={(compiledUrl) => {
+                  if (compiledUrl) {
+                    sendGuestAction({ type: "FINISH_EDITING", editedStripUrl: compiledUrl });
+                  }
+                }}
+              />
             </motion.div>
           )}
 
