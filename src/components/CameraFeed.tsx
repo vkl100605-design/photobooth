@@ -61,18 +61,11 @@ export default function CameraFeed({
   useEffect(() => {
     startCamera();
     return () => {
-      stopCamera();
+      if (multiplayerRole !== "host") {
+        stopCamera();
+      }
     };
-  }, [startCamera, stopCamera]);
-
-  // Handle stream assignment to video element
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video && stream) {
-      video.srcObject = stream;
-      video.play().catch((err) => console.log("Host local video play failed:", err));
-    }
-  }, [stream]);
+  }, [startCamera, stopCamera, multiplayerRole]);
 
   // Sync host camera stream to localStream context
   useEffect(() => {
@@ -80,18 +73,11 @@ export default function CameraFeed({
       setLocalStream(stream);
     }
     return () => {
-      setLocalStream(null);
+      if (multiplayerRole !== "host") {
+        setLocalStream(null);
+      }
     };
-  }, [stream, setLocalStream]);
-
-  // Handle remote WebRTC stream assignment
-  useEffect(() => {
-    const video = remoteVideoRef.current;
-    if (video && remoteStream) {
-      video.srcObject = remoteStream;
-      video.play().catch((err) => console.log("Host remote video play failed:", err));
-    }
-  }, [remoteStream]);
+  }, [stream, setLocalStream, multiplayerRole]);
 
   // Handle simulated stream copy for local offline testing
   useEffect(() => {
@@ -611,7 +597,12 @@ export default function CameraFeed({
           >
             {/* Hidden Video Feed */}
             <video
-              ref={videoRef}
+              ref={(el) => {
+                if (el && stream) {
+                  el.srcObject = stream;
+                  el.play().catch((err) => console.warn("Host local hidden video play failed:", err));
+                }
+              }}
               autoPlay
               playsInline
               muted
@@ -635,7 +626,12 @@ export default function CameraFeed({
                 <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
                   {remoteStream ? (
                     <video
-                      ref={remoteVideoRef}
+                      ref={(el) => {
+                        if (el && remoteStream) {
+                          el.srcObject = remoteStream;
+                          el.play().catch((err) => console.warn("Host remote video play failed:", err));
+                        }
+                      }}
                       autoPlay
                       playsInline
                       muted

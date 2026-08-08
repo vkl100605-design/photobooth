@@ -62,6 +62,7 @@ export default function Editor({
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isProcessingSyncRef = useRef<boolean>(false);
 
   // States
   const [fabricModule, setFabricModule] = useState<any>(null);
@@ -375,14 +376,14 @@ export default function Editor({
   }, [historyPointer]);
 
   const broadcastCanvasState = useCallback(() => {
-    if (isProcessing || !fCanvas) return;
+    if (isProcessingSyncRef.current || !fCanvas) return;
     const json = JSON.stringify(fCanvas.toJSON());
     if (multiplayerRole === "host") {
       broadcastToGuests({ type: "CANVAS_UPDATE", json });
     } else if (multiplayerRole === "guest") {
       sendGuestAction({ type: "CANVAS_UPDATE", json });
     }
-  }, [fCanvas, isProcessing, multiplayerRole, broadcastToGuests, sendGuestAction]);
+  }, [fCanvas, multiplayerRole, broadcastToGuests, sendGuestAction]);
 
   const lastSyncTimeRef = useRef<number>(0);
 
@@ -390,9 +391,11 @@ export default function Editor({
     if (!fCanvas || !peerCanvasJson || peerCanvasJson.timestamp <= lastSyncTimeRef.current) return;
     lastSyncTimeRef.current = peerCanvasJson.timestamp;
     
+    isProcessingSyncRef.current = true;
     setIsProcessing(true);
     fCanvas.loadFromJSON(peerCanvasJson.json, () => {
       fCanvas.renderAll();
+      isProcessingSyncRef.current = false;
       setIsProcessing(false);
     });
   }, [peerCanvasJson, fCanvas]);
@@ -706,10 +709,13 @@ export default function Editor({
     setHistoryPointer(prevPointer);
     
     const stateJson = historyStack[prevPointer];
+    isProcessingSyncRef.current = true;
     setIsProcessing(true);
     fCanvas.loadFromJSON(stateJson, () => {
       fCanvas.renderAll();
+      isProcessingSyncRef.current = false;
       setIsProcessing(false);
+      broadcastCanvasState();
     });
   };
 
@@ -721,10 +727,13 @@ export default function Editor({
     setHistoryPointer(nextPointer);
     
     const stateJson = historyStack[nextPointer];
+    isProcessingSyncRef.current = true;
     setIsProcessing(true);
     fCanvas.loadFromJSON(stateJson, () => {
       fCanvas.renderAll();
+      isProcessingSyncRef.current = false;
       setIsProcessing(false);
+      broadcastCanvasState();
     });
   };
 

@@ -46,9 +46,6 @@ export default function GuestInterface({
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-
   const syncGuestLobby = (name: string, color: string, ready: boolean) => {
     setGuestLobbyName(name);
     setGuestLobbyColor(color);
@@ -110,22 +107,7 @@ export default function GuestInterface({
 
   const activeRemoteStream = remoteStream || (hostId === "simulator" ? localStream : null);
 
-  // Stream attachments
-  useEffect(() => {
-    const video = localVideoRef.current;
-    if (video && localStream) {
-      video.srcObject = localStream;
-      video.play().catch((err) => console.log("Guest local video play failed:", err));
-    }
-  }, [localStream, step]);
 
-  useEffect(() => {
-    const video = remoteVideoRef.current;
-    if (video && activeRemoteStream) {
-      video.srcObject = activeRemoteStream;
-      video.play().catch((err) => console.log("Guest remote video play failed:", err));
-    }
-  }, [activeRemoteStream, step]);
 
   const handleShutterTrigger = () => {
     sounds.playClick();
@@ -159,7 +141,12 @@ export default function GuestInterface({
       {step !== "camera" && localStream && (
         <div className="absolute top-16 right-5 w-16 h-16 rounded-full border-2 border-amber-500 bg-stone-950 overflow-hidden shadow-lg z-30">
           <video
-            ref={localVideoRef}
+            ref={(el) => {
+              if (el && localStream) {
+                el.srcObject = localStream;
+                el.play().catch((err) => console.warn("Guest bubble local video play failed:", err));
+              }
+            }}
             autoPlay
             playsInline
             muted
@@ -191,7 +178,12 @@ export default function GuestInterface({
                 <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
                   {activeRemoteStream ? (
                     <video
-                      ref={remoteVideoRef}
+                      ref={(el) => {
+                        if (el && activeRemoteStream) {
+                          el.srcObject = activeRemoteStream;
+                          el.play().catch((err) => console.warn("Guest remote video play failed:", err));
+                        }
+                      }}
                       autoPlay
                       playsInline
                       muted
@@ -212,7 +204,12 @@ export default function GuestInterface({
                 <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
                   {localStream ? (
                     <video
-                      ref={localVideoRef}
+                      ref={(el) => {
+                        if (el && localStream) {
+                          el.srcObject = localStream;
+                          el.play().catch((err) => console.warn("Guest local video play failed:", err));
+                        }
+                      }}
                       autoPlay
                       playsInline
                       muted
