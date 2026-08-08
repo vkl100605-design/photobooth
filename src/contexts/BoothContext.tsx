@@ -121,6 +121,8 @@ interface BoothContextType {
   setGuestLobbyColor: (color: string) => void;
   guestLobbyReady: boolean;
   setGuestLobbyReady: (ready: boolean) => void;
+  activeProp: string | null;
+  setActiveProp: (prop: string | null) => void;
 }
 
 const BoothContext = createContext<BoothContextType | undefined>(undefined);
@@ -142,6 +144,7 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   const [guestLobbyName, setGuestLobbyName] = useState<string>("Janice");
   const [guestLobbyColor, setGuestLobbyColor] = useState<string>("#60a5fa"); // blue
   const [guestLobbyReady, setGuestLobbyReady] = useState<boolean>(false);
+  const [activeProp, setActiveProp] = useState<string | null>(null);
 
   // Multiplayer variables
   const [multiplayerRole, setMultiplayerRoleState] = useState<"host" | "guest" | null>(null);
@@ -251,6 +254,7 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           background,
           selectedFilter,
           photos,
+          activeProp,
         });
       });
 
@@ -261,6 +265,13 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           setGuestLobbyName(data.name);
           setGuestLobbyColor(data.color);
           setGuestLobbyReady(data.ready);
+        } else if (data.type === "UPDATE_BACKGROUND") {
+          setRemoveBackground(data.removeBackground);
+          setBackground(data.background);
+        } else if (data.type === "UPDATE_FILTER") {
+          setSelectedFilter(data.filter);
+        } else if (data.type === "UPDATE_PROP") {
+          setActiveProp(data.prop);
         }
       });
 
@@ -299,6 +310,7 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           background,
           selectedFilter,
           photos,
+          activeProp,
         });
 
         // Also broadcast lobby sync
@@ -311,7 +323,7 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         });
       }
     });
-  }, [step, layout, background, selectedFilter, photos, multiplayerRole, guestConnections, hostLobbyName, hostLobbyColor, hostLobbyReady, guestLobbyReady]);
+  }, [step, layout, background, selectedFilter, photos, multiplayerRole, guestConnections, hostLobbyName, hostLobbyColor, hostLobbyReady, guestLobbyReady, activeProp]);
 
   // Advance step automatically once both host and guest are ready in multiplayer lobby
   useEffect(() => {
@@ -352,6 +364,7 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
             setBackground(data.background);
             setSelectedFilter(data.selectedFilter);
             setPhotos(data.photos);
+            setActiveProp(data.activeProp || null);
           } else if (data.type === "SYNC_LOBBY") {
             setHostLobbyName(data.hostName);
             setHostLobbyColor(data.hostColor);
@@ -414,6 +427,34 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
       call.close();
     };
   }, [localStream, hostConnection, peerInstance, multiplayerRole]);
+
+  // Host calling all connected Guests when Host localStream is active
+  useEffect(() => {
+    if (multiplayerRole !== "host" || !peerInstance || !localStream || guestConnections.length === 0) return;
+
+    const activeCalls = guestConnections.map((conn) => {
+      if (conn.open) {
+        const call = peerInstance.call(conn.peer, localStream);
+        call.on("stream", (remoteStreamInstance: MediaStream) => {
+          setRemoteStream(remoteStreamInstance);
+        });
+        
+        const handleClose = () => {
+          setRemoteStream(null);
+        };
+        call.on("close", handleClose);
+        call.on("error", handleClose);
+        return call;
+      }
+      return null;
+    });
+
+    return () => {
+      activeCalls.forEach((call) => {
+        if (call) call.close();
+      });
+    };
+  }, [localStream, guestConnections, peerInstance, multiplayerRole]);
 
   // Triggers remote action broadcast to host OR runs simulation locally
   const sendGuestAction = useCallback(
@@ -543,6 +584,8 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         setGuestLobbyColor,
         guestLobbyReady,
         setGuestLobbyReady,
+        activeProp,
+        setActiveProp,
       }}
     >
       {children}

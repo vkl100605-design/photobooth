@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useBooth } from "@/contexts/BoothContext";
+import { useBooth, BACKGROUNDS } from "@/contexts/BoothContext";
 import { sounds } from "@/lib/sounds";
-import { Camera, Smile, Type, Check, Wifi, AlertCircle, Video } from "lucide-react";
+import { Camera, Smile, Type, Check, Wifi, AlertCircle, Video, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import PrinterAnimation from "@/components/PrinterAnimation";
 
 const EMOJIS = ["❤️", "💖", "✨", "⭐", "🕶️", "👑", "🎩", "🎀", "💬", "🎈", "🎉", "🌸", "👽", "🐱", "🐶", "🦄"];
 const FONTS = [
@@ -37,6 +38,14 @@ export default function GuestInterface({
     setGuestLobbyColor,
     guestLobbyReady,
     setGuestLobbyReady,
+    selectedFilter,
+    setSelectedFilter,
+    background,
+    setBackground,
+    removeBackground,
+    setRemoveBackground,
+    activeProp,
+    setActiveProp,
   } = useBooth();
 
   const [textVal, setTextVal] = useState<string>("");
@@ -186,7 +195,6 @@ export default function GuestInterface({
       {/* Main UI body */}
       <div className="flex-1 flex flex-col justify-center items-center py-4 w-full">
         <AnimatePresence mode="wait">
-          
           {/* STEP: Camera Remote Shutter Trigger with Dual feeds */}
           {step === "camera" && (
             <motion.div
@@ -194,17 +202,17 @@ export default function GuestInterface({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full flex flex-col items-center gap-6"
+              className="w-full flex flex-col items-center gap-5"
             >
-              <div className="text-center">
-                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest">Cooperative Video Pose</span>
-                <h3 className="text-xl font-serif font-bold text-stone-200 mt-1">Dual Video Active</h3>
+              {/* Photo Counter */}
+              <div className="text-sm font-mono tracking-widest text-stone-400">
+                {photos.length} / {layout.photoCount}
               </div>
 
-              {/* Side-by-side Video Previews */}
-              <div className="grid grid-cols-2 gap-3 w-full max-w-sm aspect-[4/3] bg-stone-900 p-2.5 rounded-2xl border border-stone-850">
-                {/* Host Feed */}
-                <div className="relative rounded-xl overflow-hidden bg-stone-950 border border-stone-800 flex items-center justify-center">
+              {/* Aspect ratio frame container */}
+              <div className="relative w-full aspect-[4/3] rounded-3xl overflow-hidden bg-stone-950 border border-stone-850 shadow-2xl p-3 grid grid-cols-2 gap-3 bg-stone-900/60">
+                {/* Host Preview (Remote Stream) */}
+                <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
                   {activeRemoteStream ? (
                     <video
                       ref={remoteVideoRef}
@@ -216,14 +224,16 @@ export default function GuestInterface({
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center p-2 text-stone-600">
                       <Video className="w-5 h-5 mb-1.5 animate-pulse text-amber-500/50" />
-                      <span className="text-[8px] font-bold uppercase tracking-wider">Host Camera Loading...</span>
+                      <span className="text-[8px] font-bold uppercase tracking-wider">Awaiting Video...</span>
                     </div>
                   )}
-                  <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">Host (Cabin)</span>
+                  <span className="absolute bottom-3 left-3 bg-pink-500 text-white px-3 py-1 rounded-full text-[10px] font-bold shadow-md">
+                    {hostLobbyName}
+                  </span>
                 </div>
 
-                {/* Local Guest Feed */}
-                <div className="relative rounded-xl overflow-hidden bg-stone-950 border border-stone-800 flex items-center justify-center">
+                {/* Guest Preview (Local Stream) */}
+                <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
                   {localStream ? (
                     <video
                       ref={localVideoRef}
@@ -238,22 +248,157 @@ export default function GuestInterface({
                       <span className="text-[8px] font-bold uppercase tracking-wider">Loading...</span>
                     </div>
                   )}
-                  <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">You (Guest)</span>
+                  <span className="absolute bottom-3 left-3 bg-pink-500 text-white px-3 py-1 rounded-full text-[10px] font-bold shadow-md">
+                    {guestLobbyName}
+                  </span>
                 </div>
               </div>
 
-              {/* Big Shutter Trigger Button */}
+              {/* CIRCULAR SELECTOR CONTROLS TRAY */}
+              <div className="w-full flex flex-col gap-4 mt-2 bg-stone-900/30 border border-stone-850 p-4.5 rounded-2xl shadow-xl">
+                
+                {/* Background selection row */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[9px] font-mono tracking-widest uppercase font-bold text-stone-500">Background</span>
+                  <div className="flex gap-2.5 overflow-x-auto py-1 pr-1 items-center justify-start scrollbar-thin">
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        setRemoveBackground(false);
+                        sendGuestAction({ type: "UPDATE_BACKGROUND", removeBackground: false, background: "" });
+                      }}
+                      className={`w-9 h-9 rounded-full border flex items-center justify-center cursor-pointer transition-all flex-shrink-0 select-none ${
+                        !removeBackground 
+                          ? "border-amber-500 bg-amber-500 text-stone-950 font-black shadow-md scale-105" 
+                          : "border-stone-850 bg-stone-950 text-stone-450 hover:border-stone-700"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+
+                    {BACKGROUNDS.map((item) => {
+                      const isSelected = removeBackground && background === item.value;
+                      const styleObject: React.CSSProperties =
+                        item.type === "pattern"
+                          ? { backgroundImage: item.value, backgroundSize: "10px 10px" }
+                          : item.type === "gradient"
+                          ? { backgroundImage: item.value }
+                          : { backgroundColor: item.value };
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            sounds.playClick();
+                            setRemoveBackground(true);
+                            setBackground(item.value);
+                            sendGuestAction({ type: "UPDATE_BACKGROUND", removeBackground: true, background: item.value });
+                          }}
+                          className={`w-9 h-9 rounded-full border transition-all flex-shrink-0 select-none cursor-pointer ${
+                            isSelected 
+                              ? "border-amber-500 ring-2 ring-amber-500 shadow-md scale-105" 
+                              : "border-stone-805 hover:border-stone-700"
+                          }`}
+                          style={styleObject}
+                          title={item.name}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Filter and prop overlay selection row */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[9px] font-mono tracking-widest uppercase font-bold text-stone-500">Props & Color</span>
+                  <div className="flex gap-2.5 overflow-x-auto py-1 pr-1 items-center justify-start scrollbar-thin">
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        setActiveProp(null);
+                        setSelectedFilter("original");
+                        sendGuestAction({ type: "UPDATE_PROP", prop: null });
+                        sendGuestAction({ type: "UPDATE_FILTER", filter: "original" });
+                      }}
+                      className={`w-9 h-9 rounded-full border flex items-center justify-center cursor-pointer transition-all flex-shrink-0 select-none ${
+                        !activeProp && selectedFilter === "original"
+                          ? "border-amber-500 bg-amber-500 text-stone-950 font-black shadow-md scale-105"
+                          : "border-stone-800 bg-stone-950 text-stone-450 hover:border-stone-700"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+
+                    {[
+                      { id: "cat", label: "🐱", name: "Cat Ears" },
+                      { id: "bunny", label: "🐰", name: "Bunny Ears" },
+                      { id: "glasses", label: "🕶️", name: "Sunglasses" },
+                      { id: "crown", label: "👑", name: "Crown" },
+                    ].map((p) => {
+                      const isSelected = activeProp === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            sounds.playClick();
+                            setActiveProp(p.id);
+                            sendGuestAction({ type: "UPDATE_PROP", prop: p.id });
+                          }}
+                          className={`w-9 h-9 rounded-full border bg-stone-950 flex items-center justify-center text-md transition-all flex-shrink-0 select-none cursor-pointer ${
+                            isSelected
+                              ? "border-amber-500 ring-2 ring-amber-500 shadow-md scale-105"
+                              : "border-stone-800 hover:border-stone-700"
+                          }`}
+                          title={p.name}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+
+                    {[
+                      { id: "kodachrome", label: "🎞️ KDK", name: "Kodachrome" },
+                      { id: "fuji", label: "🎞️ FUJ", name: "Fuji Superia" },
+                      { id: "cyanotype", label: "🎞️ CYN", name: "Cyanotype" },
+                      { id: "bw", label: "🎞️ B&W", name: "Retro Mono" },
+                    ].map((f) => {
+                      const isSelected = selectedFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => {
+                            sounds.playClick();
+                            setSelectedFilter(f.id);
+                            sendGuestAction({ type: "UPDATE_FILTER", filter: f.id });
+                          }}
+                          className={`w-9 h-9 rounded-full border bg-stone-950 flex flex-col items-center justify-center transition-all flex-shrink-0 select-none cursor-pointer ${
+                            isSelected
+                              ? "border-amber-500 ring-2 ring-amber-500 shadow-md scale-105"
+                              : "border-stone-800 hover:border-stone-700"
+                          }`}
+                          title={f.name}
+                        >
+                          <span className="text-[10px] font-sans">🎞️</span>
+                          <span className="text-[6px] font-mono font-bold tracking-tight text-stone-400 mt-0.5">{f.id.substring(0, 3).toUpperCase()}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Shutter button */}
               <button
                 onClick={handleShutterTrigger}
-                className="w-28 h-28 rounded-full bg-red-600 hover:bg-red-500 border-8 border-stone-900 shadow-[0_10px_35px_rgba(220,38,38,0.3)] active:scale-95 transition-all transform flex items-center justify-center cursor-pointer group"
+                className="w-24 h-24 rounded-full bg-red-600 hover:bg-red-500 border-6 border-stone-900 shadow-[0_10px_35px_rgba(220,38,38,0.3)] active:scale-95 transition-all transform flex items-center justify-center cursor-pointer group mt-2"
               >
-                <div className="w-18 h-18 rounded-full border-4 border-dashed border-red-200/20 flex items-center justify-center group-hover:rotate-12 transition-transform duration-700">
-                  <Camera className="w-8 h-8 text-red-550" />
+                <div className="w-14 h-14 rounded-full border-4 border-dashed border-red-200/20 flex items-center justify-center group-hover:rotate-12 transition-transform duration-700">
+                  <Camera className="w-6 h-6 text-red-50" />
                 </div>
               </button>
 
-              {/* Film Roll Capture status */}
-              <div className="w-full bg-stone-900/40 border border-stone-850 rounded-2xl p-4 flex flex-col gap-2.5">
+              {/* Bottom Horizontal captured photos reel */}
+              <div className="w-full bg-stone-900/10 border border-stone-850 rounded-2xl p-4 flex flex-col gap-2">
                 <span className="text-[9px] uppercase font-bold text-stone-500 tracking-wider">
                   Roll Captures ({photos.length} / {layout.photoCount})
                 </span>
@@ -468,8 +613,21 @@ export default function GuestInterface({
             </motion.div>
           )}
 
+          {/* STEP: Cooperative Print / Chemical development stage */}
+          {step === "print" && (
+            <motion.div
+              key="coop-print"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full"
+            >
+              <PrinterAnimation onExit={() => resetSession()} />
+            </motion.div>
+          )}
+
           {/* STEP: Waiting default screens (for layout/bg steps) */}
-          {step !== "landing" && step !== "camera" && step !== "edit" && (
+          {step !== "landing" && step !== "camera" && step !== "edit" && step !== "print" && (
             <motion.div
               key="waiting"
               initial={{ opacity: 0, scale: 0.95 }}
