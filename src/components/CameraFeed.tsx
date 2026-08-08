@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { useBooth } from "@/contexts/BoothContext";
+import { useBooth, BACKGROUNDS } from "@/contexts/BoothContext";
 import { useCamera } from "@/hooks/useCamera";
 import { sounds } from "@/lib/sounds";
-import { Camera, Volume2, VolumeX, RefreshCw, AlertTriangle, Disc } from "lucide-react";
+import { Camera, Volume2, VolumeX, RefreshCw, AlertTriangle, Disc, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function CameraFeed({
@@ -17,9 +17,12 @@ export default function CameraFeed({
   const {
     layout,
     background,
+    setBackground,
     removeBackground,
     setRemoveBackground,
     setPhotos,
+    selectedFilter,
+    setSelectedFilter,
     isMuted,
     toggleMuted,
     shutterTriggeredFromGuest,
@@ -27,8 +30,10 @@ export default function CameraFeed({
     setLocalStream,
     remoteStream,
     isSimulatedMultiplayer,
+    hostLobbyName,
+    guestLobbyName,
   } = useBooth();
-  const { stream, error, isLoading, startCamera, stopCamera } = useCamera();
+  const { stream, error, startCamera, stopCamera } = useCamera();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement>(null);
@@ -38,12 +43,13 @@ export default function CameraFeed({
   const [capturedCount, setCapturedCount] = useState<number>(0);
   const [capturedPhotos, setLocalPhotos] = useState<string[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [countdownDuration, setCountdownDuration] = useState<number>(3); // 3s, 5s, 10s
-  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(false);
+  const countdownDuration = 3; // default 3s
+  const voiceEnabled = false; // default false
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [flashActive, setFlashActive] = useState<boolean>(false);
   const [shakeActive, setShakeActive] = useState<boolean>(false);
   const [isFeedReady, setIsFeedReady] = useState<boolean>(false);
+  const [activeProp, setActiveProp] = useState<string | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [segmentation, setSegmentation] = useState<any>(null);
@@ -239,6 +245,25 @@ export default function CameraFeed({
             } else {
               drawRawFrame(ctx, video, canvas.width, canvas.height);
             }
+
+            // Draw real-time props overlays on local preview
+            if (activeProp) {
+              ctx.save();
+              ctx.font = "60px Arial";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              let emoji = "";
+              let emojiY = 0;
+              if (activeProp === "cat") { emoji = "🐱"; emojiY = 130; }
+              else if (activeProp === "bunny") { emoji = "🐰"; emojiY = 90; }
+              else if (activeProp === "glasses") { emoji = "🕶️"; emojiY = 190; }
+              else if (activeProp === "crown") { emoji = "👑"; emojiY = 100; }
+              
+              if (emoji) {
+                ctx.fillText(emoji, canvas.width / 2, emojiY);
+              }
+              ctx.restore();
+            }
           }
         }
 
@@ -258,7 +283,7 @@ export default function CameraFeed({
         active = false;
       };
     }
-  }, [stream, removeBackground, segmentation]);
+  }, [stream, removeBackground, segmentation, activeProp]);
 
   // Center crop image drawing helper for grid stitching
   const drawCenterCropped = (
@@ -362,6 +387,27 @@ export default function CameraFeed({
         ctx.restore();
       }
 
+      // Draw custom props inside high-res snapshots
+      if (activeProp) {
+        ctx.save();
+        ctx.font = "80px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        let hostEmoji = "";
+        let hostY = 0;
+        if (activeProp === "cat") { hostEmoji = "🐱"; hostY = 240; }
+        else if (activeProp === "bunny") { hostEmoji = "🐰"; hostY = 190; }
+        else if (activeProp === "glasses") { hostEmoji = "🕶️"; hostY = 320; }
+        else if (activeProp === "crown") { hostEmoji = "👑"; hostY = 200; }
+        
+        if (hostEmoji) {
+          ctx.fillText(hostEmoji, 300, hostY);
+          ctx.fillText(hostEmoji, 900, hostY);
+        }
+        ctx.restore();
+      }
+
       return canvas.toDataURL("image/png");
     }
 
@@ -381,6 +427,24 @@ export default function CameraFeed({
     } else if (video) {
       // Capture raw camera stream
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+
+    if (activeProp) {
+      ctx.save();
+      ctx.font = "60px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      let emoji = "";
+      let emojiY = 0;
+      if (activeProp === "cat") { emoji = "🐱"; emojiY = 130; }
+      else if (activeProp === "bunny") { emoji = "🐰"; emojiY = 90; }
+      else if (activeProp === "glasses") { emoji = "🕶️"; emojiY = 190; }
+      else if (activeProp === "crown") { emoji = "👑"; emojiY = 100; }
+      
+      if (emoji) {
+        ctx.fillText(emoji, canvas.width / 2, emojiY);
+      }
+      ctx.restore();
     }
 
     return canvas.toDataURL("image/png");
@@ -523,231 +587,283 @@ export default function CameraFeed({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 w-full items-start">
-          <div className="md:col-span-3 flex flex-col items-center">
-            <motion.div
-              animate={shakeActive ? { x: [-5, 5, -5, 5, 0], y: [-3, 3, -3, 3, 0] } : {}}
-              transition={{ duration: 0.15 }}
-              className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-stone-950 border-4 border-stone-900 shadow-2xl flex items-center justify-center"
-            >
-              {/* Hidden Video Feed */}
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="absolute top-0 left-0 w-[1px] h-[1px] opacity-0 pointer-events-none"
-              />
-
-              {multiplayerRole === "host" ? (
-                <div className="grid grid-cols-2 gap-3.5 w-full h-full p-3 bg-stone-900/60">
-                  {/* Host Preview Canvas */}
-                  <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
-                    <canvas
-                      ref={canvasPreviewRef}
-                      className="w-full h-full object-cover transform scale-x-[-1]"
-                    />
-                    <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">You (Host)</span>
-                  </div>
-
-                  {/* Remote Guest Preview Video */}
-                  <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
-                    {remoteStream ? (
-                      <video
-                        ref={remoteVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover"
-                      />
-                    ) : isSimulatedMultiplayer ? (
-                      <video
-                        ref={simulatedVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover transform -scale-x-100 filter sepia-[0.5] hue-rotate-[90deg] contrast-[1.2]"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-center p-4">
-                        <div className="w-6 h-6 rounded-full border border-stone-800 border-t-amber-500 animate-spin mb-2" />
-                        <span className="text-[9px] uppercase tracking-wider font-bold text-stone-500 animate-pulse">Awaiting Guest Video...</span>
-                      </div>
-                    )}
-                    <span className="absolute bottom-2 left-2 bg-stone-950/80 px-2 py-0.5 rounded text-[8px] font-bold text-stone-400">Friend (Guest)</span>
-                  </div>
-                </div>
-              ) : (
-                /* Render canvas preview directly (Solo Mode) */
-                <canvas
-                  ref={canvasPreviewRef}
-                  className="w-full h-full object-cover transform scale-x-[-1]"
-                />
-              )}
-
-              {(!stream || isLoading || !isFeedReady) && (
-                <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center">
-                  <div className="w-12 h-12 rounded-full border-4 border-amber-500/10 border-t-amber-500 animate-spin mb-4" />
-                  <span className="text-stone-400 text-xs font-semibold animate-pulse">
-                    Warming up booth lamp...
-                  </span>
-                </div>
-              )}
-
-              <AnimatePresence>
-                {countdown !== null && (
-                  <motion.div
-                    initial={{ scale: 0.3, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 2, opacity: 0 }}
-                    transition={{ duration: 0.8 }}
-                    className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-10"
-                  >
-                    <span className="text-8xl md:text-9xl font-serif font-black text-amber-400">
-                      {countdown}
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {isCapturing && countdown === null && (
-                <div className="absolute top-4 left-4 flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-600/85 border border-red-500 text-red-50 text-[10px] font-bold uppercase tracking-wider animate-pulse z-10">
-                  <Disc className="w-3.5 h-3.5 fill-red-50" /> CAPTURING {capturedCount + 1}/{layout.photoCount}
-                </div>
-              )}
-            </motion.div>
-
-            {!isCapturing && (
-              <div className="w-full flex flex-wrap justify-between items-center gap-4 mt-6 bg-stone-900/40 p-4 rounded-xl border border-stone-850">
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase font-bold text-stone-500 tracking-wider">Countdown</span>
-                  <div className="flex gap-2">
-                    {[3, 5, 10].map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => {
-                          sounds.playClick();
-                          setCountdownDuration(t);
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
-                          countdownDuration === t
-                            ? "bg-amber-500 border-amber-500 text-stone-950"
-                            : "bg-stone-900 border-stone-800 text-stone-400 hover:border-stone-700"
-                        }`}
-                      >
-                        {t}s
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Background removal toggle */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase font-bold text-stone-500 tracking-wider">Segmentation</span>
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setRemoveBackground(!removeBackground);
-                    }}
-                    disabled={segLoading || !segmentation}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer disabled:opacity-40 flex items-center gap-1.5 ${
-                      removeBackground
-                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                        : "bg-stone-900 border-stone-800 text-stone-500 hover:border-stone-700"
-                    }`}
-                  >
-                    {segLoading ? (
-                      <div className="w-3 h-3 rounded-full border border-stone-600 border-t-amber-500 animate-spin" />
-                    ) : null}
-                    {removeBackground ? "Cutout Active" : "Original Background"}
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase font-bold text-stone-500 tracking-wider">Voice</span>
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setVoiceEnabled(!voiceEnabled);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
-                      voiceEnabled
-                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                        : "bg-stone-900 border-stone-800 text-stone-500 hover:border-stone-700"
-                    }`}
-                  >
-                    {voiceEnabled ? "Voice On" : "Voice Off"}
-                  </button>
-                </div>
-
-                <button
-                  onClick={startCaptureSequence}
-                  disabled={!isFeedReady}
-                  className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold transition-all transform active:scale-95 shadow-[0_4px_15px_rgba(245,158,11,0.2)] flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <Camera className="w-4 h-4" /> Start Capture
-                </button>
-              </div>
-            )}
+        <div className="w-full max-w-xl mx-auto flex flex-col items-center select-none">
+          {/* Counter "2 / 6" */}
+          <div className="text-xl font-light font-mono tracking-widest text-stone-400 mb-6">
+            {isCapturing 
+              ? `${capturedCount + 1} / ${layout.photoCount}` 
+              : `${capturedPhotos.length} / ${layout.photoCount}`}
           </div>
 
-          <div className="md:col-span-1 flex flex-col h-full bg-stone-900/40 border border-stone-850 rounded-2xl p-4 self-stretch">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-stone-400 mb-3 border-b border-stone-800/80 pb-2 flex justify-between">
-              <span>Strip Film</span>
-              <span className="text-amber-500">{capturedCount} / {layout.photoCount}</span>
-            </h4>
+          {/* Camera Viewport Container */}
+          <motion.div
+            animate={shakeActive ? { x: [-5, 5, -5, 5, 0], y: [-3, 3, -3, 3, 0] } : {}}
+            transition={{ duration: 0.15 }}
+            className="relative w-full aspect-[4/3] rounded-3xl overflow-hidden bg-stone-950 border border-stone-850 shadow-2xl flex items-center justify-center"
+          >
+            {/* Hidden Video Feed */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute top-0 left-0 w-[1px] h-[1px] opacity-0 pointer-events-none"
+            />
 
-            {capturedPhotos.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center py-10 opacity-40">
-                <Film className="w-8 h-8 text-stone-500 mb-2 animate-pulse" />
-                <p className="text-[10px] uppercase font-bold tracking-wider text-stone-500">EMPTY ROLL</p>
-                <p className="text-[10px] text-stone-600 mt-1 max-w-[120px]">Snapshots appear here as you shoot.</p>
+            {multiplayerRole === "host" ? (
+              <div className="grid grid-cols-2 gap-3.5 w-full h-full p-3 bg-stone-900/60">
+                {/* Host Preview Canvas */}
+                <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
+                  <canvas
+                    ref={canvasPreviewRef}
+                    className="w-full h-full object-cover transform scale-x-[-1]"
+                  />
+                  <span className="absolute bottom-3 left-3 bg-pink-500 text-white px-3 py-1 rounded-full text-[10px] font-bold shadow-md">
+                    {hostLobbyName}
+                  </span>
+                </div>
+
+                {/* Remote Guest Preview Video */}
+                <div className="relative rounded-xl overflow-hidden border border-stone-850 bg-stone-950 flex items-center justify-center">
+                  {remoteStream ? (
+                    <video
+                      ref={remoteVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover animate-in fade-in"
+                    />
+                  ) : isSimulatedMultiplayer ? (
+                    <video
+                      ref={simulatedVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover transform -scale-x-100 filter sepia-[0.5] hue-rotate-[90deg] contrast-[1.2]"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-4">
+                      <div className="w-6 h-6 rounded-full border border-stone-850 border-t-amber-500 animate-spin mb-2" />
+                      <span className="text-[9px] uppercase tracking-wider font-bold text-stone-500 animate-pulse">Awaiting Video...</span>
+                    </div>
+                  )}
+                  <span className="absolute bottom-3 left-3 bg-pink-500 text-white px-3 py-1 rounded-full text-[10px] font-bold shadow-md">
+                    {guestLobbyName}
+                  </span>
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-3 overflow-y-auto max-h-[45vh] pr-1 py-1">
-                {capturedPhotos.map((photo, index) => (
-                  <div
-                    key={index}
-                    className="relative aspect-[4/3] rounded-lg overflow-hidden border border-stone-800 shadow-md bg-stone-950 flex-shrink-0"
-                  >
-                    <img src={photo} alt={`Snap ${index + 1}`} className="w-full h-full object-cover" />
-                    <div className="absolute bottom-1 right-1 bg-stone-950/85 px-1.5 py-0.5 rounded text-[8px] font-bold text-amber-500 border border-stone-800 uppercase tracking-widest">
-                      Snap {index + 1}
-                    </div>
-                  </div>
-                ))}
+              /* Render canvas preview directly (Solo Mode) */
+              <canvas
+                ref={canvasPreviewRef}
+                className="w-full h-full object-cover transform scale-x-[-1]"
+              />
+            )}
+
+            {/* Countdown Overlay numbers */}
+            <AnimatePresence>
+              {countdown !== null && (
+                <motion.div
+                  initial={{ scale: 0.3, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 2, opacity: 0 }}
+                  transition={{ duration: 0.8 }}
+                  className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-10"
+                >
+                  <span className="text-8xl md:text-9xl font-serif font-black text-amber-400">
+                    {countdown}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Expanded Flash bulb overlays */}
+            <AnimatePresence>
+              {flashActive && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute inset-0 bg-white z-30"
+                />
+              )}
+            </AnimatePresence>
+
+            {isCapturing && countdown === null && (
+              <div className="absolute top-4 left-4 flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-650/85 border border-red-500 text-red-50 text-[10px] font-bold uppercase tracking-wider animate-pulse z-10">
+                <Disc className="w-3.5 h-3.5 fill-red-50" /> CAPTURING {capturedCount + 1}/{layout.photoCount}
               </div>
+            )}
+          </motion.div>
+
+          {/* Real-time Settings Tray below viewport */}
+          {!isCapturing && (
+            <div className="w-full flex flex-col gap-5 mt-8 bg-stone-900/30 border border-stone-850 p-6 rounded-3xl shadow-xl">
+              
+              {/* BACKGROUND ROW */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] font-mono tracking-widest uppercase font-bold text-stone-500">Background</span>
+                <div className="flex gap-3 overflow-x-auto py-1 pr-1 items-center justify-start scrollbar-thin">
+                  {/* Deselect background button */}
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setRemoveBackground(false);
+                    }}
+                    className={`w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition-all flex-shrink-0 select-none ${
+                      !removeBackground 
+                        ? "border-amber-500 bg-amber-500 text-stone-950 font-black shadow-md scale-105" 
+                        : "border-stone-850 bg-stone-950 text-stone-450 hover:border-stone-700"
+                    }`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  {/* Preset Background Circles */}
+                  {BACKGROUNDS.map((item) => {
+                    const isSelected = removeBackground && background === item.value;
+                    const styleObject: React.CSSProperties =
+                      item.type === "pattern"
+                        ? { backgroundImage: item.value, backgroundSize: "10px 10px" }
+                        : item.type === "gradient"
+                        ? { backgroundImage: item.value }
+                        : { backgroundColor: item.value };
+
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          sounds.playClick();
+                          setRemoveBackground(true);
+                          setBackground(item.value);
+                        }}
+                        className={`w-11 h-11 rounded-full border transition-all flex-shrink-0 select-none cursor-pointer ${
+                          isSelected 
+                            ? "border-amber-500 ring-2 ring-amber-500 shadow-md scale-105" 
+                            : "border-stone-800 hover:border-stone-700"
+                        }`}
+                        style={styleObject}
+                        title={item.name}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* FILTER / PROP ROW */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] font-mono tracking-widest uppercase font-bold text-stone-500">Props & Color Filter</span>
+                <div className="flex gap-3 overflow-x-auto py-1 pr-1 items-center justify-start scrollbar-thin">
+                  {/* Deselect props / filters */}
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setActiveProp(null);
+                      setSelectedFilter("original");
+                    }}
+                    className={`w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition-all flex-shrink-0 select-none ${
+                      !activeProp && selectedFilter === "original"
+                        ? "border-amber-500 bg-amber-500 text-stone-950 font-black shadow-md scale-105"
+                        : "border-stone-800 bg-stone-950 text-stone-450 hover:border-stone-700"
+                    }`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  {/* Props Option Buttons */}
+                  {[
+                    { id: "cat", label: "🐱", name: "Cat Ears" },
+                    { id: "bunny", label: "🐰", name: "Bunny Ears" },
+                    { id: "glasses", label: "🕶️", name: "Sunglasses" },
+                    { id: "crown", label: "👑", name: "Crown" },
+                  ].map((p) => {
+                    const isSelected = activeProp === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          sounds.playClick();
+                          setActiveProp(p.id);
+                        }}
+                        className={`w-11 h-11 rounded-full border bg-stone-950 flex items-center justify-center text-xl transition-all flex-shrink-0 select-none cursor-pointer ${
+                          isSelected
+                            ? "border-amber-500 ring-2 ring-amber-500 shadow-md scale-105"
+                            : "border-stone-800 hover:border-stone-700"
+                        }`}
+                        title={p.name}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+
+                  {/* Color Film Stocks Option Buttons */}
+                  {[
+                    { id: "kodachrome", label: "🎞️ KDK", name: "Kodachrome" },
+                    { id: "fuji", label: "🎞️ FUJ", name: "Fuji Superia" },
+                    { id: "cyanotype", label: "🎞️ CYN", name: "Cyanotype" },
+                    { id: "bw", label: "🎞️ B&W", name: "Retro Mono" },
+                  ].map((f) => {
+                    const isSelected = selectedFilter === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          sounds.playClick();
+                          setSelectedFilter(f.id);
+                        }}
+                        className={`w-11 h-11 rounded-full border bg-stone-950 flex flex-col items-center justify-center transition-all flex-shrink-0 select-none cursor-pointer ${
+                          isSelected
+                            ? "border-amber-500 ring-2 ring-amber-500 shadow-md scale-105"
+                            : "border-stone-800 hover:border-stone-700"
+                        }`}
+                        title={f.name}
+                      >
+                        <span className="text-[12px] font-sans">🎞️</span>
+                        <span className="text-[7px] font-mono font-bold tracking-tight text-stone-400 mt-0.5">{f.id.substring(0, 3).toUpperCase()}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* Capture triggers */}
+          {!isCapturing && (
+            <button
+              onClick={startCaptureSequence}
+              disabled={!isFeedReady}
+              className="mt-8 px-8 py-3.5 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold transition-all transform active:scale-95 shadow-[0_4px_20px_rgba(245,158,11,0.2)] flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-mono tracking-widest uppercase"
+            >
+              <Camera className="w-4.5 h-4.5" /> Start snaps
+            </button>
+          )}
+
+          {/* Captured Photos horizontal reel preview at bottom */}
+          <div className="w-full flex gap-3 overflow-x-auto justify-start sm:justify-center py-4 px-2 bg-stone-900/10 rounded-2xl border border-stone-850/60 max-w-md mx-auto mt-6 scrollbar-thin">
+            {capturedPhotos.length === 0 ? (
+              <span className="text-[10px] uppercase font-bold text-stone-600 tracking-wider py-1.5 select-none w-full text-center">
+                snaps will appear here
+              </span>
+            ) : (
+              capturedPhotos.map((photo, index) => (
+                <div
+                  key={index}
+                  className="relative w-16 h-12 rounded-lg overflow-hidden border border-stone-850 bg-stone-950 shadow flex-shrink-0"
+                >
+                  <img src={photo} alt={`Snap ${index + 1}`} className="w-full h-full object-cover" />
+                  <div className="absolute bottom-0.5 right-0.5 bg-stone-950/85 px-1 py-0.2 rounded text-[6px] font-bold text-amber-500 border border-stone-850 uppercase tracking-widest">
+                    #{index + 1}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-function Film(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M7 3v18" />
-      <path d="M17 3v18" />
-      <path d="M3 7.5h4" />
-      <path d="M3 12h4" />
-      <path d="M3 16.5h4" />
-      <path d="M17 7.5h4" />
-      <path d="M17 12h4" />
-      <path d="M17 16.5h4" />
-    </svg>
   );
 }

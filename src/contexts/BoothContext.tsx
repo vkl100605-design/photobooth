@@ -109,6 +109,18 @@ interface BoothContextType {
   setRemoteStream: (stream: MediaStream | null) => void;
   loopVideoUrl: string;
   setLoopVideoUrl: (url: string) => void;
+  hostLobbyName: string;
+  setHostLobbyName: (name: string) => void;
+  hostLobbyColor: string;
+  setHostLobbyColor: (color: string) => void;
+  hostLobbyReady: boolean;
+  setHostLobbyReady: (ready: boolean) => void;
+  guestLobbyName: string;
+  setGuestLobbyName: (name: string) => void;
+  guestLobbyColor: string;
+  setGuestLobbyColor: (color: string) => void;
+  guestLobbyReady: boolean;
+  setGuestLobbyReady: (ready: boolean) => void;
 }
 
 const BoothContext = createContext<BoothContextType | undefined>(undefined);
@@ -124,6 +136,12 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   const [editedStripUrl, setEditedStripUrl] = useState<string>("");
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [loopVideoUrl, setLoopVideoUrl] = useState<string>("");
+  const [hostLobbyName, setHostLobbyName] = useState<string>("Nixie");
+  const [hostLobbyColor, setHostLobbyColor] = useState<string>("#f472b6"); // pink
+  const [hostLobbyReady, setHostLobbyReady] = useState<boolean>(false);
+  const [guestLobbyName, setGuestLobbyName] = useState<string>("Janice");
+  const [guestLobbyColor, setGuestLobbyColor] = useState<string>("#60a5fa"); // blue
+  const [guestLobbyReady, setGuestLobbyReady] = useState<boolean>(false);
 
   // Multiplayer variables
   const [multiplayerRole, setMultiplayerRoleState] = useState<"host" | "guest" | null>(null);
@@ -239,14 +257,10 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
       conn.on("data", (data: any) => {
         if (data.type === "TRIGGER_SHUTTER") {
           setShutterTriggeredFromGuest((prev) => prev + 1);
-        } else if (data.type === "ADD_STICKER_COOP") {
-          setGuestAnnotation({
-            type: data.annoType,
-            value: data.value,
-            font: data.font,
-            color: data.color,
-            timestamp: Date.now(),
-          });
+        } else if (data.type === "GUEST_LOBBY_UPDATE") {
+          setGuestLobbyName(data.name);
+          setGuestLobbyColor(data.color);
+          setGuestLobbyReady(data.ready);
         }
       });
 
@@ -286,9 +300,26 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           selectedFilter,
           photos,
         });
+
+        // Also broadcast lobby sync
+        conn.send({
+          type: "SYNC_LOBBY",
+          hostName: hostLobbyName,
+          hostColor: hostLobbyColor,
+          hostReady: hostLobbyReady,
+          guestReady: guestLobbyReady,
+        });
       }
     });
-  }, [step, layout, background, selectedFilter, photos, multiplayerRole, guestConnections]);
+  }, [step, layout, background, selectedFilter, photos, multiplayerRole, guestConnections, hostLobbyName, hostLobbyColor, hostLobbyReady, guestLobbyReady]);
+
+  // Advance step automatically once both host and guest are ready in multiplayer lobby
+  useEffect(() => {
+    if (multiplayerRole === "host" && hostLobbyReady && guestLobbyReady && step === "landing") {
+      sounds.playClick();
+      setStepState("frame-select");
+    }
+  }, [hostLobbyReady, guestLobbyReady, step, multiplayerRole]);
 
   // Connects Guest device directly to Host using their WebRTC Peer ID
   const connectToHost = useCallback(
@@ -321,6 +352,11 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
             setBackground(data.background);
             setSelectedFilter(data.selectedFilter);
             setPhotos(data.photos);
+          } else if (data.type === "SYNC_LOBBY") {
+            setHostLobbyName(data.hostName);
+            setHostLobbyColor(data.hostColor);
+            setHostLobbyReady(data.hostReady);
+            setGuestLobbyReady(data.guestReady);
           }
         });
 
@@ -444,6 +480,13 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
       URL.revokeObjectURL(loopVideoUrl);
     }
     setLoopVideoUrl("");
+
+    setHostLobbyName("Nixie");
+    setHostLobbyColor("#f472b6");
+    setHostLobbyReady(false);
+    setGuestLobbyName("Janice");
+    setGuestLobbyColor("#60a5fa");
+    setGuestLobbyReady(false);
   };
 
   return (
@@ -488,6 +531,18 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         setRemoteStream,
         loopVideoUrl,
         setLoopVideoUrl,
+        hostLobbyName,
+        setHostLobbyName,
+        hostLobbyColor,
+        setHostLobbyColor,
+        hostLobbyReady,
+        setHostLobbyReady,
+        guestLobbyName,
+        setGuestLobbyName,
+        guestLobbyColor,
+        setGuestLobbyColor,
+        guestLobbyReady,
+        setGuestLobbyReady,
       }}
     >
       {children}

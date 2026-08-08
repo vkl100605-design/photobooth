@@ -16,6 +16,15 @@ export default function ConnectManager({
     connectedGuestsCount,
     setStep,
     setIsSimulatedMultiplayer,
+    hostLobbyName,
+    setHostLobbyName,
+    hostLobbyColor,
+    setHostLobbyColor,
+    hostLobbyReady,
+    setHostLobbyReady,
+    guestLobbyName,
+    guestLobbyColor,
+    guestLobbyReady,
   } = useBooth();
 
   const [lanIp, setLanIp] = useState<string>("");
@@ -80,6 +89,113 @@ export default function ConnectManager({
   };
 
   const joinUrl = getJoinUrl();
+
+  if (connectedGuestsCount > 0) {
+    return (
+      <div className="w-full max-w-md mx-auto px-4 py-6 flex flex-col items-center justify-center min-h-[75vh]">
+        {/* Lobby Header */}
+        <div className="w-full flex justify-between items-center mb-10">
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onBack();
+            }}
+            className="text-stone-400 hover:text-stone-200 transition-colors text-sm font-semibold cursor-pointer"
+          >
+            &larr; Exit Lobby
+          </button>
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-stone-900 border border-stone-850 rounded-full">
+            <Wifi className="w-3.5 h-3.5 text-green-500 animate-pulse" />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-stone-300">Connected</span>
+          </div>
+        </div>
+
+        {/* Pinterest Clean Lobby Card */}
+        <div className="w-full bg-white text-stone-900 rounded-3xl p-8 shadow-2xl flex flex-col gap-8 border border-stone-200">
+          
+          {/* YOU Section */}
+          <div className="flex flex-col items-center text-center w-full">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-stone-450 mb-2">YOU</span>
+            
+            {/* Input card for Host Name */}
+            <input
+              type="text"
+              value={hostLobbyName}
+              onChange={(e) => {
+                setHostLobbyName(e.target.value.substring(0, 12));
+              }}
+              placeholder="Enter name..."
+              className="w-full bg-stone-50 border border-stone-200 text-stone-900 rounded-2xl px-4 py-3 text-center text-lg font-bold shadow-sm focus:outline-none focus:border-stone-400"
+            />
+
+            {/* Colors picker */}
+            <div className="flex gap-4 justify-center items-center mt-4">
+              {["#f472b6", "#60a5fa", "#fbbf24", "#34d399"].map((color) => {
+                const isSelected = hostLobbyColor === color;
+                return (
+                  <button
+                    key={color}
+                    onClick={() => {
+                      sounds.playClick();
+                      setHostLobbyColor(color);
+                    }}
+                    className="w-10 h-10 rounded-full cursor-pointer transition-transform hover:scale-105 active:scale-95 shadow"
+                    style={{
+                      backgroundColor: color,
+                      border: isSelected ? "4px solid #1c1917" : "1px solid rgba(0,0,0,0.15)",
+                    }}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Ready Toggle button */}
+            <button
+              onClick={() => {
+                sounds.playClick();
+                setHostLobbyReady(!hostLobbyReady);
+              }}
+              className={`w-full py-3 rounded-2xl font-bold transition-all text-sm cursor-pointer mt-5 flex items-center justify-center gap-1.5 border-2 ${
+                hostLobbyReady
+                  ? "bg-emerald-800 border-emerald-800 text-white hover:bg-emerald-700"
+                  : "bg-white border-stone-300 text-stone-700 hover:bg-stone-50"
+              }`}
+            >
+              <span>{hostLobbyReady ? "ready ✓" : "mark ready"}</span>
+            </button>
+          </div>
+
+          <div className="w-full border-t border-stone-100" />
+
+          {/* PARTNER Section */}
+          <div className="flex flex-col items-center text-center w-full">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-stone-450 mb-2">PARTNER</span>
+            
+            <div className="w-full bg-stone-50 border border-stone-200 text-stone-900 rounded-2xl py-3 text-center text-lg font-bold flex items-center justify-center gap-2">
+              <span>{guestLobbyName}</span>
+              {guestLobbyReady && <span className="text-emerald-600 text-sm font-black">✓</span>}
+            </div>
+
+            {/* Partner color dot */}
+            <div className="flex gap-2 justify-center items-center mt-3">
+              <div
+                className="w-10 h-10 rounded-full border border-stone-200 shadow"
+                style={{
+                  backgroundColor: guestLobbyColor,
+                }}
+              />
+            </div>
+
+            {/* Partner ready indicator text */}
+            <span className={`text-[10px] uppercase font-bold tracking-wider mt-4 ${guestLobbyReady ? "text-emerald-600 animate-pulse" : "text-stone-400"}`}>
+              {guestLobbyReady ? "ready ✓" : "waiting for partner..."}
+            </span>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 py-6 flex flex-col items-center justify-start min-h-[85vh]">

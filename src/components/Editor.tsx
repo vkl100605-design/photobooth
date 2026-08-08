@@ -8,25 +8,10 @@ import {
   Undo2,
   Redo2,
   Trash2,
-  Palette,
-  Type,
   Smile,
   Brush,
-  MousePointer,
-  ChevronUp,
-  ChevronDown,
-  ArrowRight,
   Sparkles
 } from "lucide-react";
-
-// Pre-defined font options for typography choices
-const FONTS = [
-  { id: "Georgia", name: "Vintage Serif" },
-  { id: "Pacifico", name: "Handwritten Pacifico" },
-  { id: "Caveat", name: "Cursive Caveat" },
-  { id: "Courier New", name: "Classic Typewriter" },
-  { id: "Impact", name: "Retro Bold" },
-];
 
 const EMOJI_STICKERS = [
   "❤️", "💖", "✨", "⭐", "🕶️", "👑", "🎩", "🎀", "💬", "🎈", "🎉", "🌸", "🍀", "🍕", "🍦", "👽", "🐱", "🐶", "🐻", "🦄"
@@ -81,12 +66,11 @@ export default function Editor({
   const [brushSize, setBrushSize] = useState<number>(8);
   
   // Text states
-  const [textInput, setTextInput] = useState<string>("");
-  const [textFont, setTextFont] = useState<string>("Pacifico");
-  const [textColor, setTextColor] = useState<string>("#ffffff");
+  const [textInput, setTextInput] = useState<string>(" ");
+  const textFont = "Pacifico";
+  const textColor = "#ffffff";
 
-  // Layers & History states
-  const [canvasLayers, setCanvasLayers] = useState<any[]>([]);
+  // History states
   const [historyStack, setHistoryStack] = useState<string[]>([]);
   const [historyPointer, setHistoryPointer] = useState<number>(-1);
   const [isProcessing, setIsProcessing] = useState<boolean>(true);
@@ -354,7 +338,6 @@ export default function Editor({
         fabricCanvas.setBackgroundImage(bgFabricImg, fabricCanvas.renderAll.bind(fabricCanvas));
         
         // Track layer structures & set up event hooks
-        updateLayersList(fabricCanvas);
         saveHistoryState(fabricCanvas);
         setFCanvas(fabricCanvas);
         setIsProcessing(false);
@@ -383,41 +366,26 @@ export default function Editor({
     });
   }, [historyPointer]);
 
-  const updateLayersList = useCallback((canvasInstance: any) => {
-    if (!canvasInstance) return;
-    // Get objects and reverse to show top layers first
-    const list = [...canvasInstance.getObjects()].reverse();
-    setCanvasLayers(list);
-  }, []);
-
-  // Setup Fabric event listeners for layers lists & object edits
+  // Setup Fabric event listeners for history states & object edits
   useEffect(() => {
     if (!fCanvas) return;
 
     const handleObjectAdded = () => {
-      updateLayersList(fCanvas);
       saveHistoryState(fCanvas);
     };
 
     const handleObjectModified = () => {
-      updateLayersList(fCanvas);
       saveHistoryState(fCanvas);
-    };
-
-    const handleObjectRemoved = () => {
-      updateLayersList(fCanvas);
     };
 
     fCanvas.on("object:added", handleObjectAdded);
     fCanvas.on("object:modified", handleObjectModified);
-    fCanvas.on("object:removed", handleObjectRemoved);
 
     return () => {
       fCanvas.off("object:added", handleObjectAdded);
       fCanvas.off("object:modified", handleObjectModified);
-      fCanvas.off("object:removed", handleObjectRemoved);
     };
-  }, [fCanvas, historyPointer, saveHistoryState, updateLayersList]);
+  }, [fCanvas, historyPointer, saveHistoryState]);
 
   // Sync brush changes & cursors to Fabric drawing engine
   useEffect(() => {
@@ -690,29 +658,6 @@ export default function Editor({
     fCanvas.renderAll();
   };
 
-  // Layer manipulations
-  const layerMoveUp = (obj: any) => {
-    sounds.playClick();
-    obj.bringForward();
-    fCanvas.renderAll();
-    updateLayersList(fCanvas);
-  };
-
-  const layerMoveDown = (obj: any) => {
-    sounds.playClick();
-    obj.sendBackwards();
-    fCanvas.renderAll();
-    updateLayersList(fCanvas);
-  };
-
-  const layerDelete = (obj: any) => {
-    sounds.playClick();
-    fCanvas.remove(obj);
-    fCanvas.renderAll();
-    updateLayersList(fCanvas);
-    saveHistoryState(fCanvas);
-  };
-
   // Undo / Redo mechanics
   const handleUndo = () => {
     if (!fCanvas || historyPointer <= 0) return;
@@ -725,7 +670,6 @@ export default function Editor({
     setIsProcessing(true);
     fCanvas.loadFromJSON(stateJson, () => {
       fCanvas.renderAll();
-      updateLayersList(fCanvas);
       setIsProcessing(false);
     });
   };
@@ -741,7 +685,6 @@ export default function Editor({
     setIsProcessing(true);
     fCanvas.loadFromJSON(stateJson, () => {
       fCanvas.renderAll();
-      updateLayersList(fCanvas);
       setIsProcessing(false);
     });
   };
@@ -766,10 +709,10 @@ export default function Editor({
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 py-4 flex flex-col items-center justify-start min-h-[88vh] relative select-none">
+    <div className="w-full max-w-xl mx-auto px-4 py-4 flex flex-col items-center justify-start min-h-[88vh] relative select-none">
       
       {/* Editor Header */}
-      <div className="w-full flex justify-between items-center mb-4">
+      <div className="w-full flex justify-between items-center mb-6">
         <button
           onClick={() => {
             sounds.playClick();
@@ -780,249 +723,27 @@ export default function Editor({
           &larr; Back
         </button>
 
-        <h2 className="text-lg font-serif font-bold text-amber-100 flex items-center gap-1.5">
-          <Palette className="w-4.5 h-4.5 text-amber-500 animate-pulse" /> Retro Doodling Cabin
+        <h2 className="text-sm font-sans tracking-widest font-bold text-stone-400 uppercase">
+          Retro Scrapbook
         </h2>
 
-        {/* Undo/Redo Controls */}
-        <div className="flex gap-2">
-          <button
-            onClick={handleUndo}
-            disabled={historyPointer <= 0 || isProcessing}
-            className="p-2 rounded-lg bg-stone-900 border border-stone-850 text-stone-400 hover:text-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            aria-label="Undo"
-          >
-            <Undo2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleRedo}
-            disabled={historyPointer >= historyStack.length - 1 || isProcessing}
-            className="p-2 rounded-lg bg-stone-900 border border-stone-850 text-stone-400 hover:text-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            aria-label="Redo"
-          >
-            <Redo2 className="w-4 h-4" />
-          </button>
-        </div>
+        {/* Exporter Button in top right */}
+        <button
+          onClick={handleFinishEditing}
+          disabled={isProcessing}
+          className="px-4 py-2 border border-stone-800 hover:bg-stone-900 bg-stone-950 rounded-lg text-xs font-mono tracking-wider font-bold text-stone-200 cursor-pointer disabled:opacity-40 transition-colors uppercase"
+        >
+          finish ▷
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 w-full items-start">
+      {/* Main Single-Column centered layout */}
+      <div className="flex flex-col items-center gap-5 w-full">
         
-        {/* Sidebar Controls (left-2 columns) */}
-        <div className="md:col-span-1 flex flex-col gap-4">
+        {/* Canvas Card */}
+        <div ref={containerRef} className="w-full flex flex-col items-center justify-center p-4 bg-stone-900/20 border border-stone-850 rounded-3xl shadow-inner relative overflow-hidden" style={{ touchAction: "none" }}>
           
-          {/* Tool Navigation Selection */}
-          <div className="bg-stone-900/40 border border-stone-850 p-3 rounded-2xl flex md:flex-col justify-around gap-2 shadow-inner">
-            <button
-              onClick={() => handleSelectTool("select")}
-              className={`p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer border transition-colors flex-1 md:flex-initial ${
-                activeTool === "select"
-                  ? "bg-amber-500 text-stone-950 border-amber-500"
-                  : "bg-stone-950 border-stone-800 text-stone-400 hover:bg-stone-900"
-              }`}
-            >
-              <MousePointer className="w-4.5 h-4.5" />
-              <span>Select</span>
-            </button>
-            <button
-              onClick={() => handleSelectTool("draw")}
-              className={`p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer border transition-colors flex-1 md:flex-initial ${
-                activeTool === "draw"
-                  ? "bg-amber-500 text-stone-950 border-amber-500"
-                  : "bg-stone-950 border-stone-800 text-stone-400 hover:bg-stone-900"
-              }`}
-            >
-              <Brush className="w-4.5 h-4.5" />
-              <span>Doodle</span>
-            </button>
-            <button
-              onClick={() => handleSelectTool("sticker")}
-              className={`p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer border transition-colors flex-1 md:flex-initial ${
-                activeTool === "sticker"
-                  ? "bg-amber-500 text-stone-950 border-amber-500"
-                  : "bg-stone-950 border-stone-800 text-stone-400 hover:bg-stone-900"
-              }`}
-            >
-              <Smile className="w-4.5 h-4.5" />
-              <span>Stickers</span>
-            </button>
-            <button
-              onClick={() => handleSelectTool("text")}
-              className={`p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer border transition-colors flex-1 md:flex-initial ${
-                activeTool === "text"
-                  ? "bg-amber-500 text-stone-950 border-amber-500"
-                  : "bg-stone-950 border-stone-800 text-stone-400 hover:bg-stone-900"
-              }`}
-            >
-              <Type className="w-4.5 h-4.5" />
-              <span>Letters</span>
-            </button>
-          </div>
-
-          {/* Sub-Panel: Brush Draw settings */}
-          {activeTool === "draw" && (
-            <div className="bg-stone-900/40 border border-stone-850 p-4 rounded-2xl shadow-lg flex flex-col gap-3.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Brush Settings</span>
-              
-              {/* Preset Brushes */}
-              <div className="grid grid-cols-2 gap-2">
-                {BRUSH_TYPES.map((b) => (
-                  <button
-                    key={b.id}
-                    onClick={() => handleSelectBrush(b.id)}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      activeBrush === b.id
-                        ? "bg-stone-800 border-amber-500 text-amber-400"
-                        : "bg-stone-950 border-stone-800 text-stone-400"
-                    }`}
-                  >
-                    {b.name}
-                  </button>
-                ))}
-              </div>
-
-              {/* Size Slider */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between text-xs text-stone-400 font-medium">
-                  <span>Brush Size</span>
-                  <span className="text-amber-500 font-bold">{brushSize}px</span>
-                </div>
-                <input
-                  type="range"
-                  min="2"
-                  max="60"
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(Number(e.target.value))}
-                  className="w-full h-1 bg-stone-850 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                />
-              </div>
-
-              {/* Brush Color Picker */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs text-stone-400 font-medium">Stroke Color</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={brushColor}
-                    onChange={(e) => setBrushColor(e.target.value)}
-                    className="w-8 h-8 rounded border border-stone-800 bg-transparent cursor-pointer"
-                  />
-                  <span className="text-xs text-stone-400 uppercase font-mono font-bold">{brushColor}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Sub-Panel: Stickers Pack */}
-          {activeTool === "sticker" && (
-            <div className="bg-stone-900/40 border border-stone-850 p-4 rounded-2xl shadow-lg flex flex-col gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Classic Emojis</span>
-              <div className="grid grid-cols-5 gap-2 max-h-[140px] overflow-y-auto pr-1">
-                {EMOJI_STICKERS.map((emoji, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleAddSticker(emoji)}
-                    className="aspect-square rounded-lg bg-stone-950 hover:bg-stone-850 border border-stone-800 text-xl flex items-center justify-center cursor-pointer transition-colors"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-
-              <div className="border-t border-stone-850 pt-2.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block mb-2">Torn Washi Tapes</span>
-                <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
-                  {WASHI_TAPES.map((tape, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleAddWashiTape(tape.color, tape.pattern as any)}
-                      className="h-7 rounded-md border border-stone-800 flex items-center justify-center cursor-pointer hover:border-stone-600 transition-colors text-[9px] font-bold text-stone-900 relative overflow-hidden"
-                      style={{
-                        backgroundColor: tape.color,
-                        opacity: 0.85,
-                      }}
-                    >
-                      {tape.pattern === "grid" && (
-                        <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(0,0,0,1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,1)_1px,transparent_1px)] bg-[size:5px_5px]" />
-                      )}
-                      {tape.pattern === "stripes" && (
-                        <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,rgba(0,0,0,1)_25%,transparent_25%,transparent_50%,rgba(0,0,0,1)_50%,rgba(0,0,0,1)_75%,transparent_75%,transparent)] bg-[size:6px_6px]" />
-                      )}
-                      <span className="relative z-10 select-none drop-shadow-sm opacity-60 font-mono uppercase tracking-wider">{tape.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Sub-Panel: Text Editor */}
-          {activeTool === "text" && (
-            <div className="bg-stone-900/40 border border-stone-850 p-4 rounded-2xl shadow-lg flex flex-col gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Letters Panel</span>
-              <input
-                type="text"
-                placeholder="Type word..."
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddText()}
-                className="w-full bg-stone-950 border border-stone-800 rounded-lg p-2.5 text-xs text-stone-100 placeholder:text-stone-600 focus:outline-none focus:border-amber-500"
-              />
-
-              {/* Fonts */}
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-stone-500 font-bold uppercase">Select Font</span>
-                <select
-                  value={textFont}
-                  onChange={(e) => setTextFont(e.target.value)}
-                  className="w-full bg-stone-950 border border-stone-800 text-stone-300 p-2 rounded-lg text-xs focus:outline-none focus:border-amber-500"
-                >
-                  {FONTS.map((f) => (
-                    <option key={f.id} value={f.id} className="bg-stone-950 font-serif">
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Text Color */}
-              <div className="flex justify-between items-center border-t border-stone-800/80 pt-3">
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="color"
-                    value={textColor}
-                    onChange={(e) => setTextColor(e.target.value)}
-                    className="w-7 h-7 rounded border border-stone-800 bg-transparent cursor-pointer"
-                  />
-                  <span className="text-[10px] font-mono text-stone-400 uppercase">{textColor}</span>
-                </div>
-
-                <button
-                  onClick={handleAddText}
-                  disabled={!textInput.trim()}
-                  className="py-1.5 px-3 rounded-lg bg-amber-500 text-stone-950 font-bold text-xs hover:bg-amber-400 disabled:opacity-40 cursor-pointer transition-colors"
-                >
-                  Insert
-                </button>
-              </div>
-
-              <div className="border-t border-stone-850 pt-2.5 flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Distressed Ink Stamps</span>
-                <button
-                  onClick={handleAddDateStamp}
-                  className="w-full py-2 rounded-lg border border-red-900/30 hover:border-red-800 bg-red-950/20 hover:bg-red-950/35 text-red-400 font-bold transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> Stamp Current Date
-                </button>
-              </div>
-            </div>
-          )}
-
-        </div>
-
-        {/* Canvas Display Desk (center-2 columns) */}
-        <div ref={containerRef} className="md:col-span-2 flex flex-col items-center justify-center p-4 bg-stone-950/20 border border-stone-850/60 rounded-3xl shadow-inner relative overflow-hidden" style={{ touchAction: "none" }}>
-          
-          {/* Desk Vintage Lamp Glow */}
+          {/* Vintage Lamp Glow */}
           <div className="absolute top-0 w-80 h-32 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
           {/* Loader */}
@@ -1033,7 +754,7 @@ export default function Editor({
             </div>
           )}
 
-          {/* Scale Box Wrapper to shrink canvas container layout dynamically */}
+          {/* Canvas Wrapper */}
           <div
             className="shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-stone-300/40 bg-stone-100 rounded-sm overflow-hidden"
             style={{
@@ -1045,7 +766,7 @@ export default function Editor({
                   : layout.id === "strip-4"
                   ? "833px"
                   : layout.id === "strip-6"
-                  ? "363px" // double wide
+                  ? "363px"
                   : layout.id === "polaroid"
                   ? "305px"
                   : "262px",
@@ -1056,88 +777,194 @@ export default function Editor({
               <canvas id="fabric-editor" ref={canvasRef} />
             </div>
           </div>
-
-          <span className="text-[10px] uppercase font-bold text-stone-500 tracking-widest mt-4">
-            Interactive Scrapbook (600x1800 DPI Scale)
-          </span>
         </div>
 
-        {/* Layers & Exporter Panel (right-1 column) */}
-        <div className="md:col-span-1 flex flex-col gap-4 self-stretch">
-          
-          {/* Layers Manager */}
-          <div className="flex-1 flex flex-col bg-stone-900/40 border border-stone-850 rounded-2xl p-4 shadow-lg h-full">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-3 border-b border-stone-850 pb-2">
-              Layers List ({canvasLayers.length})
-            </span>
-
-            {canvasLayers.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center py-10 opacity-30 text-stone-500">
-                <Type className="w-7 h-7 mb-2 stroke-1" />
-                <p className="text-[10px] uppercase font-bold tracking-wider">No Layers</p>
-                <p className="text-[9px] mt-1 max-w-[120px]">Stickers, doodles, and text boxes will appear as separate layers.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 overflow-y-auto max-h-[30vh] md:max-h-[36vh] pr-1 py-1">
-                {canvasLayers.map((obj, index) => {
-                  const isTextObj = obj.type === "text" || obj.type === "i-text";
-                  const label = isTextObj
-                    ? `Text: "${obj.text.substring(0, 10)}${obj.text.length > 10 ? "..." : ""}"`
-                    : obj.type === "path"
-                    ? "Doodle Stroke"
-                    : `Sticker (${obj.text})`;
-
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 rounded-xl bg-stone-950 border border-stone-850 text-[10px] font-medium"
-                    >
-                      <span className="text-stone-300 truncate max-w-[80px]" title={label}>
-                        {label}
-                      </span>
-                      
-                      <div className="flex items-center gap-1">
-                        {/* Layer order re-order buttons */}
-                        <button
-                          onClick={() => layerMoveUp(obj)}
-                          className="p-1 rounded bg-stone-900 border border-stone-800 text-stone-400 hover:text-stone-200 cursor-pointer"
-                          aria-label="Bring Forward"
-                        >
-                          <ChevronUp className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => layerMoveDown(obj)}
-                          className="p-1 rounded bg-stone-900 border border-stone-800 text-stone-400 hover:text-stone-200 cursor-pointer"
-                          aria-label="Send Backward"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-                        {/* Delete layer object */}
-                        <button
-                          onClick={() => layerDelete(obj)}
-                          className="p-1 rounded bg-stone-900 border border-red-900/30 text-red-400 hover:bg-red-950/20 cursor-pointer ml-1"
-                          aria-label="Delete layer"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Export action */}
+        {/* Small floating actions bar: Undo, Redo, and Delete Selected */}
+        <div className="flex gap-4 bg-stone-900/60 border border-stone-850 px-4 py-2 rounded-2xl shadow w-full max-w-[285px] justify-around items-center">
           <button
-            onClick={handleFinishEditing}
-            disabled={isProcessing}
-            className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold transition-all transform active:scale-95 shadow-[0_4px_20px_rgba(245,158,11,0.25)] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            onClick={handleUndo}
+            disabled={historyPointer <= 0 || isProcessing}
+            className="p-2 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+            aria-label="Undo"
           >
-            Finish & Print <ArrowRight className="w-4.5 h-4.5" />
+            <Undo2 className="w-4 h-4" />
+          </button>
+          
+          <button
+            onClick={handleRedo}
+            disabled={historyPointer >= historyStack.length - 1 || isProcessing}
+            className="p-2 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+            aria-label="Redo"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+
+          {/* Delete active selected sticker/object */}
+          <button
+            onClick={() => {
+              if (!fCanvas) return;
+              const activeObject = fCanvas.getActiveObject();
+              if (activeObject) {
+                sounds.playClick();
+                fCanvas.remove(activeObject);
+                fCanvas.discardActiveObject().renderAll();
+              }
+            }}
+            className="p-2 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer"
+            aria-label="Delete selected layer"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
 
+        {/* The Pill Selectors (Stickers | Draw) */}
+        <div className="flex border border-stone-850 bg-stone-900/60 p-1.5 rounded-full w-full max-w-[285px] justify-center gap-1 shadow-inner">
+          <button
+            onClick={() => handleSelectTool("sticker")}
+            className={`px-6 py-2 rounded-full font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer select-none ${
+              activeTool === "sticker" || activeTool === "select" || activeTool === "text"
+                ? "bg-white text-stone-950 shadow"
+                : "text-stone-400 hover:text-stone-200"
+            }`}
+          >
+            <Smile className="w-3.5 h-3.5" /> Stickers
+          </button>
+          <button
+            onClick={() => handleSelectTool("draw")}
+            className={`px-6 py-2 rounded-full font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer select-none ${
+              activeTool === "draw"
+                ? "bg-white text-stone-950 shadow"
+                : "text-stone-400 hover:text-stone-200"
+            }`}
+          >
+            <Brush className="w-3.5 h-3.5" /> Draw
+          </button>
+        </div>
+
+        {/* Active Tool Sub-Panel Tray */}
+        <div className="w-full max-w-xl bg-stone-900/30 border border-stone-850 rounded-3xl p-4 shadow-xl">
+          
+          {/* STICKERS TRAY (contains Emojis, Washi Tapes, Stamp, and custom Text Input) */}
+          {(activeTool === "sticker" || activeTool === "select" || activeTool === "text") && (
+            <div className="flex flex-col gap-3">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Insert Stickers, Text, & Tape</span>
+              
+              <div className="w-full overflow-x-auto py-2 flex gap-4 px-2 items-center justify-start scrollbar-thin">
+                {/* 1. Custom Text Input card */}
+                <div className="flex items-center gap-2 bg-stone-950 border border-stone-850 p-2 rounded-xl flex-shrink-0 h-14">
+                  <input
+                    type="text"
+                    placeholder="type word..."
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddText()}
+                    className="w-[100px] bg-transparent border-none text-xs text-stone-100 placeholder:text-stone-600 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleAddText}
+                    disabled={!textInput.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-stone-200 hover:bg-white text-stone-950 font-bold text-[9px] uppercase tracking-wider cursor-pointer disabled:opacity-40 transition-colors"
+                  >
+                    add
+                  </button>
+                </div>
+
+                {/* 2. Ink Date Stamp button */}
+                <button
+                  onClick={handleAddDateStamp}
+                  className="h-14 px-4 border border-stone-800 bg-stone-950 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-stone-900 flex-shrink-0 select-none text-[9px] font-bold text-stone-200 gap-1"
+                >
+                  <Sparkles className="w-4 h-4 text-red-400 animate-pulse" />
+                  <span>Stamp Date</span>
+                </button>
+
+                {/* 3. Classic Emojis */}
+                {EMOJI_STICKERS.map((emoji, idx) => (
+                  <button
+                    key={`emoji-${idx}`}
+                    onClick={() => handleAddSticker(emoji)}
+                    className="w-14 h-14 rounded-xl bg-stone-950 hover:bg-stone-900 border border-stone-800 text-2xl flex items-center justify-center cursor-pointer flex-shrink-0 transition-colors"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+
+                {/* 4. Torn Washi Tapes */}
+                {WASHI_TAPES.map((tape, idx) => (
+                  <button
+                    key={`tape-${idx}`}
+                    onClick={() => handleAddWashiTape(tape.color, tape.pattern as any)}
+                    className="h-14 w-28 rounded-xl border border-stone-800 flex flex-col items-center justify-center cursor-pointer hover:border-stone-600 transition-colors text-[9px] font-mono font-bold text-stone-900 relative overflow-hidden flex-shrink-0 select-none"
+                    style={{
+                      backgroundColor: tape.color,
+                      opacity: 0.85,
+                    }}
+                  >
+                    {tape.pattern === "grid" && (
+                      <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(0,0,0,1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,1)_1px,transparent_1px)] bg-[size:5px_5px]" />
+                    )}
+                    {tape.pattern === "stripes" && (
+                      <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,rgba(0,0,0,1)_25%,transparent_25%,transparent_50%,rgba(0,0,0,1)_50%,rgba(0,0,0,1)_75%,transparent_75%,transparent)] bg-[size:6px_6px]" />
+                    )}
+                    <span className="relative z-10 drop-shadow-sm opacity-60 font-mono uppercase tracking-wider">{tape.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* DOODLE BRUSH TRAY */}
+          {activeTool === "draw" && (
+            <div className="flex flex-col gap-3">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Brush & Color settings</span>
+              
+              <div className="w-full overflow-x-auto py-2 flex gap-4 px-2 items-center justify-start scrollbar-thin">
+                {/* 1. Stroke color circular picker block */}
+                <div className="flex items-center gap-2 bg-stone-950 border border-stone-800 p-2.5 rounded-xl h-14 flex-shrink-0">
+                  <input
+                    type="color"
+                    value={brushColor}
+                    onChange={(e) => setBrushColor(e.target.value)}
+                    className="w-8 h-8 rounded border border-stone-800 bg-transparent cursor-pointer"
+                  />
+                  <span className="text-[10px] font-mono text-stone-400 uppercase">{brushColor}</span>
+                </div>
+
+                {/* 2. Brush size range container */}
+                <div className="flex flex-col gap-1 justify-center bg-stone-950 border border-stone-800 p-2.5 rounded-xl h-14 flex-shrink-0 min-w-[130px]">
+                  <div className="flex justify-between text-[8px] text-stone-450 font-bold uppercase tracking-wider">
+                    <span>Brush Size</span>
+                    <span className="text-amber-500 font-bold">{brushSize}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="2"
+                    max="60"
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                    className="w-full h-1 bg-stone-850 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+                </div>
+
+                {/* 3. Brush presets */}
+                {BRUSH_TYPES.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => handleSelectBrush(b.id)}
+                    className={`h-14 px-4 rounded-xl text-xs font-mono tracking-wide uppercase border transition-all cursor-pointer flex-shrink-0 flex items-center justify-center ${
+                      activeBrush === b.id
+                        ? "bg-stone-200 border-stone-300 text-stone-950 font-bold"
+                        : "bg-stone-950 border-stone-800 text-stone-400 hover:text-stone-200"
+                    }`}
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
       </div>
     </div>
   );

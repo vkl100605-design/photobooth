@@ -28,6 +28,15 @@ export default function GuestInterface({
     localStream,
     setLocalStream,
     remoteStream,
+    hostLobbyName,
+    hostLobbyColor,
+    hostLobbyReady,
+    guestLobbyName,
+    setGuestLobbyName,
+    guestLobbyColor,
+    setGuestLobbyColor,
+    guestLobbyReady,
+    setGuestLobbyReady,
   } = useBooth();
 
   const [textVal, setTextVal] = useState<string>("");
@@ -38,6 +47,18 @@ export default function GuestInterface({
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+  const syncGuestLobby = (name: string, color: string, ready: boolean) => {
+    setGuestLobbyName(name);
+    setGuestLobbyColor(color);
+    setGuestLobbyReady(ready);
+    sendGuestAction({
+      type: "GUEST_LOBBY_UPDATE",
+      name,
+      color,
+      ready,
+    });
+  };
 
   // Connect guest peer on mount
   useEffect(() => {
@@ -51,6 +72,19 @@ export default function GuestInterface({
       setIsConnected(false);
     };
   }, [hostId, connectToHost]);
+
+  // Send initial guest lobby data when connected
+  useEffect(() => {
+    if (isConnected) {
+      sendGuestAction({
+        type: "GUEST_LOBBY_UPDATE",
+        name: guestLobbyName,
+        color: guestLobbyColor,
+        ready: guestLobbyReady,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected]);
 
   // Request camera track access on mount
   useEffect(() => {
@@ -340,8 +374,102 @@ export default function GuestInterface({
             </motion.div>
           )}
 
-          {/* STEP: Waiting default screens */}
-          {step !== "camera" && step !== "edit" && (
+          {/* STEP: Lobby Waiting Room inside landing step */}
+          {step === "landing" && (
+            <motion.div
+              key="lobby"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full flex flex-col gap-6"
+            >
+              {/* Pinterest Clean Lobby Card */}
+              <div className="w-full bg-white text-stone-900 rounded-3xl p-6 shadow-xl flex flex-col gap-6 border border-stone-200 mt-2">
+                
+                {/* YOU Section */}
+                <div className="flex flex-col items-center text-center w-full">
+                  <span className="text-[9px] uppercase font-black tracking-widest text-stone-400 mb-1.5">YOU</span>
+                  
+                  <input
+                    type="text"
+                    value={guestLobbyName}
+                    onChange={(e) => {
+                      const val = e.target.value.substring(0, 12);
+                      syncGuestLobby(val, guestLobbyColor, guestLobbyReady);
+                    }}
+                    placeholder="Enter name..."
+                    className="w-full bg-stone-50 border border-stone-200 text-stone-900 rounded-xl px-3 py-2 text-center text-md font-bold shadow-sm focus:outline-none focus:border-stone-400"
+                  />
+
+                  {/* Colors picker */}
+                  <div className="flex gap-3.5 justify-center items-center mt-3">
+                    {["#f472b6", "#60a5fa", "#fbbf24", "#34d399"].map((color) => {
+                      const isSelected = guestLobbyColor === color;
+                      return (
+                        <button
+                          key={color}
+                          onClick={() => {
+                            sounds.playClick();
+                            syncGuestLobby(guestLobbyName, color, guestLobbyReady);
+                          }}
+                          className="w-8.5 h-8.5 rounded-full cursor-pointer transition-transform hover:scale-105 active:scale-95 shadow"
+                          style={{
+                            backgroundColor: color,
+                            border: isSelected ? "3.5px solid #1c1917" : "1px solid rgba(0,0,0,0.15)",
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Ready Toggle button */}
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      syncGuestLobby(guestLobbyName, guestLobbyColor, !guestLobbyReady);
+                    }}
+                    className={`w-full py-2.5 rounded-xl font-bold transition-all text-xs cursor-pointer mt-4 flex items-center justify-center gap-1.5 border-2 ${
+                      guestLobbyReady
+                        ? "bg-emerald-800 border-emerald-800 text-white hover:bg-emerald-700"
+                        : "bg-white border-stone-300 text-stone-700 hover:bg-stone-50"
+                    }`}
+                  >
+                    <span>{guestLobbyReady ? "ready ✓" : "mark ready"}</span>
+                  </button>
+                </div>
+
+                <div className="w-full border-t border-stone-100" />
+
+                {/* PARTNER Section */}
+                <div className="flex flex-col items-center text-center w-full">
+                  <span className="text-[9px] uppercase font-black tracking-widest text-stone-400 mb-1.5">PARTNER</span>
+                  
+                  <div className="w-full bg-stone-50 border border-stone-200 text-stone-900 rounded-xl py-2 text-center text-md font-bold flex items-center justify-center gap-2">
+                    <span>{hostLobbyName}</span>
+                    {hostLobbyReady && <span className="text-emerald-600 text-xs font-black">✓</span>}
+                  </div>
+
+                  {/* Partner color dot */}
+                  <div className="flex gap-2 justify-center items-center mt-2.5">
+                    <div
+                      className="w-8.5 h-8.5 rounded-full border border-stone-200 shadow"
+                      style={{
+                        backgroundColor: hostLobbyColor,
+                      }}
+                    />
+                  </div>
+
+                  <span className={`text-[9px] uppercase font-bold tracking-wider mt-3 ${hostLobbyReady ? "text-emerald-600 animate-pulse" : "text-stone-400"}`}>
+                    {hostLobbyReady ? "ready ✓" : "waiting for partner..."}
+                  </span>
+                </div>
+
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP: Waiting default screens (for layout/bg steps) */}
+          {step !== "landing" && step !== "camera" && step !== "edit" && (
             <motion.div
               key="waiting"
               initial={{ opacity: 0, scale: 0.95 }}
