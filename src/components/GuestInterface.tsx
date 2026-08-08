@@ -112,14 +112,18 @@ export default function GuestInterface({
 
   // Stream attachments
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+    const video = localVideoRef.current;
+    if (video && localStream) {
+      video.srcObject = localStream;
+      video.play().catch((err) => console.log("Guest local video play failed:", err));
     }
   }, [localStream, step]);
 
   useEffect(() => {
-    if (remoteVideoRef.current && activeRemoteStream) {
-      remoteVideoRef.current.srcObject = activeRemoteStream;
+    const video = remoteVideoRef.current;
+    if (video && activeRemoteStream) {
+      video.srcObject = activeRemoteStream;
+      video.play().catch((err) => console.log("Guest remote video play failed:", err));
     }
   }, [activeRemoteStream, step]);
 

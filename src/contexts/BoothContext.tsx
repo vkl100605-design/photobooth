@@ -440,26 +440,35 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
     [PeerClass]
   );
 
-  // Guest calling Host effect when in camera/edit/print steps
+  // Host calling connected Guests when Host localStream is active
   useEffect(() => {
     const isCallStep = step === "camera" || step === "filters" || step === "edit" || step === "print";
-    if (multiplayerRole !== "guest" || !peerInstance || !hostConnection || !localStream || !isCallStep) return;
+    if (multiplayerRole !== "host" || !peerInstance || !localStream || !isCallStep || guestConnections.length === 0) return;
 
-    const call = peerInstance.call(hostConnection.peer, localStream);
-    call.on("stream", (remoteStreamInstance: MediaStream) => {
-      setRemoteStream(remoteStreamInstance);
+    console.log("Host dialing connected Guests...");
+    const activeCalls = guestConnections.map((conn) => {
+      if (conn.open) {
+        const call = peerInstance.call(conn.peer, localStream);
+        call.on("stream", (remoteStreamInstance: MediaStream) => {
+          setRemoteStream(remoteStreamInstance);
+        });
+        
+        const handleClose = () => {
+          setRemoteStream(null);
+        };
+        call.on("close", handleClose);
+        call.on("error", handleClose);
+        return call;
+      }
+      return null;
     });
-    
-    const handleClose = () => {
-      setRemoteStream(null);
-    };
-    call.on("close", handleClose);
-    call.on("error", handleClose);
 
     return () => {
-      call.close();
+      activeCalls.forEach((call) => {
+        if (call) call.close();
+      });
     };
-  }, [localStream, hostConnection, peerInstance, multiplayerRole, step]);
+  }, [localStream, guestConnections, peerInstance, multiplayerRole, step]);
 
   // Triggers remote action broadcast to host OR runs simulation locally
   const sendGuestAction = useCallback(

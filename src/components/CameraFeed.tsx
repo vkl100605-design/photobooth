@@ -67,8 +67,10 @@ export default function CameraFeed({
 
   // Handle stream assignment to video element
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+    const video = videoRef.current;
+    if (video && stream) {
+      video.srcObject = stream;
+      video.play().catch((err) => console.log("Host local video play failed:", err));
     }
   }, [stream]);
 
@@ -84,8 +86,10 @@ export default function CameraFeed({
 
   // Handle remote WebRTC stream assignment
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    const video = remoteVideoRef.current;
+    if (video && remoteStream) {
+      video.srcObject = remoteStream;
+      video.play().catch((err) => console.log("Host remote video play failed:", err));
     }
   }, [remoteStream]);
 
