@@ -32,6 +32,7 @@ export default function CameraFeed({
     isSimulatedMultiplayer,
     hostLobbyName,
     guestLobbyName,
+    broadcastToGuests,
   } = useBooth();
   const { stream, error, startCamera, stopCamera } = useCamera();
 
@@ -464,15 +465,18 @@ export default function CameraFeed({
 
       for (let count = countdownDuration; count > 0; count--) {
         setCountdown(count);
+        broadcastToGuests({ type: "COUNTDOWN_UPDATE", value: count });
         playBeep(800, 0.08);
         speak(count.toString());
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       setCountdown(null);
+      broadcastToGuests({ type: "COUNTDOWN_UPDATE", value: null });
 
       // Shutter Trigger
       setFlashActive(true);
+      broadcastToGuests({ type: "FLASH_TRIGGER" });
       setShakeActive(true);
       sounds.playShutter();
 

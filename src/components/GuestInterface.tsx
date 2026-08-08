@@ -46,6 +46,8 @@ export default function GuestInterface({
     setRemoveBackground,
     activeProp,
     setActiveProp,
+    guestCountdown,
+    guestFlashActive,
   } = useBooth();
 
   const [textVal, setTextVal] = useState<string>("");
@@ -252,6 +254,36 @@ export default function GuestInterface({
                     {guestLobbyName}
                   </span>
                 </div>
+
+                {/* Countdown Overlay numbers */}
+                <AnimatePresence>
+                  {guestCountdown !== null && (
+                    <motion.div
+                      initial={{ scale: 0.3, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 2, opacity: 0 }}
+                      transition={{ duration: 0.8 }}
+                      className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-30"
+                    >
+                      <span className="text-8xl font-serif font-black text-amber-400">
+                        {guestCountdown}
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Flash overlay */}
+                <AnimatePresence>
+                  {guestFlashActive && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute inset-0 bg-white z-40"
+                    />
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* CIRCULAR SELECTOR CONTROLS TRAY */}

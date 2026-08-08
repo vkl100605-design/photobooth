@@ -123,6 +123,11 @@ interface BoothContextType {
   setGuestLobbyReady: (ready: boolean) => void;
   activeProp: string | null;
   setActiveProp: (prop: string | null) => void;
+  guestCountdown: number | null;
+  setGuestCountdown: (val: number | null) => void;
+  guestFlashActive: boolean;
+  setGuestFlashActive: (val: boolean) => void;
+  broadcastToGuests: (data: any) => void;
 }
 
 const BoothContext = createContext<BoothContextType | undefined>(undefined);
@@ -145,6 +150,8 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   const [guestLobbyColor, setGuestLobbyColor] = useState<string>("#60a5fa"); // blue
   const [guestLobbyReady, setGuestLobbyReady] = useState<boolean>(false);
   const [activeProp, setActiveProp] = useState<string | null>(null);
+  const [guestCountdown, setGuestCountdown] = useState<number | null>(null);
+  const [guestFlashActive, setGuestFlashActive] = useState<boolean>(false);
 
   // Multiplayer variables
   const [multiplayerRole, setMultiplayerRoleState] = useState<"host" | "guest" | null>(null);
@@ -168,6 +175,16 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
   const [guestConnections, setGuestConnections] = useState<any[]>([]);
   const [connectedGuestsCount, setConnectedGuestsCount] = useState<number>(0);
   const [hostConnection, setHostConnection] = useState<any>(null);
+
+  const broadcastToGuests = useCallback((data: any) => {
+    if (multiplayerRole === "host" && guestConnections.length > 0) {
+      guestConnections.forEach((conn) => {
+        if (conn.open) {
+          conn.send(data);
+        }
+      });
+    }
+  }, [multiplayerRole, guestConnections]);
 
   // Dynamically load peerjs library on mount to be SSR safe
   useEffect(() => {
@@ -368,8 +385,13 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
           } else if (data.type === "SYNC_LOBBY") {
             setHostLobbyName(data.hostName);
             setHostLobbyColor(data.hostColor);
-            setHostLobbyReady(data.hostReady);
+            setHostLobbyReady(data.hostName ? data.hostReady : data.hostReady); // simple copy
             setGuestLobbyReady(data.guestReady);
+          } else if (data.type === "COUNTDOWN_UPDATE") {
+            setGuestCountdown(data.value);
+          } else if (data.type === "FLASH_TRIGGER") {
+            setGuestFlashActive(true);
+            setTimeout(() => setGuestFlashActive(false), 200);
           }
         });
 
@@ -558,6 +580,11 @@ export function BoothProvider({ children }: { children: React.ReactNode }) {
         setGuestLobbyReady,
         activeProp,
         setActiveProp,
+        guestCountdown,
+        setGuestCountdown,
+        guestFlashActive,
+        setGuestFlashActive,
+        broadcastToGuests,
       }}
     >
       {children}
